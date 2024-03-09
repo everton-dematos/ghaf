@@ -18,10 +18,13 @@
           ../modules/host
           ../modules/virtualization/microvm/microvm-host.nix
           ../modules/virtualization/microvm/netvm.nix
+          ../modules/srta
 
           {
             ghaf = {
               hardware.x86_64.common.enable = true;
+
+              srta.tools.enable = true;
 
               virtualization.microvm-host.enable = true;
               host.networking.enable = true;

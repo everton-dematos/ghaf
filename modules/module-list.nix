@@ -16,6 +16,7 @@
   ./profiles/graphics.nix
   ./profiles/installer.nix
   ./profiles/release.nix
+  ./srta
   ./users/accounts.nix
   ./version
   ./virtualization/docker.nix
