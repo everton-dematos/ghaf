@@ -31,6 +31,9 @@ in
             torch
             netifaces
           ]))
+        
+        # Git
+        git
 
         # Network Analyzer
         tcpdump
