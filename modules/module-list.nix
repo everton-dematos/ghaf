@@ -16,6 +16,7 @@
   ./profiles/graphics.nix
   ./profiles/installer.nix
   ./profiles/release.nix
+  ./suricata
   ./users/accounts.nix
   ./version
   ./virtualization/docker.nix
