@@ -24,7 +24,7 @@
             ghaf = {
               hardware.x86_64.common.enable = true;
 
-              suricata.development.enable = true;
+              suricata.enable = true;
 
               virtualization.microvm-host.enable = true;
               host.networking.enable = true;

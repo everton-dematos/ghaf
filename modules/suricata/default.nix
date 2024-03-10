@@ -7,10 +7,10 @@
   lib,
   ...
 }: let
-  cfg = config.ghaf.development.suricata;
+  cfg = config.ghaf.suricata;
 in
   with lib; {
-    options.ghaf.development.suricata = {
+    options.ghaf.suricata = {
       enable = mkEnableOption "Whether to enable Suricata, the network IDS/IPS/NSM engine.";
 
       # configFile = mkOption {
