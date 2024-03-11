@@ -16,6 +16,7 @@ in
     config = mkIf cfg.enable {
       environment.systemPackages = with pkgs; [
         # Python 3
+        libpcap
         (python3.withPackages (ps:
           with ps; [
             numpy
@@ -31,7 +32,7 @@ in
             torch
             netifaces
           ]))
-        
+
         # Git
         git
 
