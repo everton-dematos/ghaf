@@ -38,11 +38,63 @@
         };
       };
     };
+    usbDevSubmodule = types.submodule {
+      options = {
+        name = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            USB device name (optional)
+          '';
+        };
+        vendorId = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            USB Vendor ID
+          '';
+        };
+        productId = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            USB Product ID
+          '';
+        };
+      };
+    };
   in {
     name = mkOption {
       description = "Name of the hardware";
       type = types.str;
       default = "";
+    };
+
+    touchpad = mkOption {
+      description = "Name of the touchpad device";
+      type = types.str;
+      default = "";
+    };
+
+    mouse = mkOption {
+      description = "Name of the mouse device";
+      type = types.str;
+      default = "";
+    };
+
+    usb = {
+      camera = mkOption {
+        description = "Name of the USB camera";
+        type = usbDevSubmodule;
+        default = {};
+        example = literalExpression ''
+          {
+            name = "USB camera device";
+            vendorId = "30c9";
+            productId = "0052";
+          }
+        '';
+      };
     };
 
     network = {
@@ -61,6 +113,24 @@
           }]
         '';
       };
+    };
+
+    disks = mkOption {
+      description = "Disks to format and mount";
+      type = types.attrsOf (types.submodule {
+        options.device = mkOption {
+          type = types.str;
+          description = ''
+            Path to the disk
+          '';
+        };
+      });
+      default = {};
+      example = literalExpression ''
+        {
+          disk1.device = "/dev/nvme0n1";
+        }
+      '';
     };
 
     gpu = {
@@ -95,6 +165,18 @@
           "evdev=/dev/touchpad"
           "evdev=/dev/input/by-path/platform-i8042-serio-1-event-mouse"
         ]
+      '';
+    };
+
+    udevRules = mkOption {
+      description = ''
+        Definition of required udev rules.
+      '';
+      type = types.str;
+      default = "";
+      example = literalExpression ''
+        # Laptop keyboard
+        SUBSYSTEM=="input",ATTRS{name}=="AT Translated Set 2 keyboard",GROUP="kvm"
       '';
     };
   };

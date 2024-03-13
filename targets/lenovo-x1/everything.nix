@@ -6,7 +6,6 @@
   lib,
   microvm,
   lanzaboote,
-  disko,
   name,
   system,
   ...
@@ -15,16 +14,17 @@
   # These can be added back to default.nix to form part of the target template
   debugModules = import ./debugModules.nix;
   releaseModules = import ./releaseModules.nix;
-  hwDefinition = import ./hardwareDefinition.nix;
-
   ## To here
 
-  lenovo-x1 = variant: extraModules: let
+  lenovo-x1 = generation: variant: extraModules: let
+    hwDefinition = import ../../modules/common/hardware/lenovo-x1/definitions {
+      inherit generation;
+      rev = "uae";
+    };
     hostConfiguration = lib.nixosSystem {
       inherit system;
       modules =
         [
-          disko.nixosModules.disko
           lanzaboote.nixosModules.lanzaboote
           microvm.nixosModules.host
           self.nixosModules.common
@@ -33,10 +33,7 @@
           self.nixosModules.lanzaboote
           self.nixosModules.microvm
 
-          # TODO: Refactor the disko module a bit
-          ../../modules/disko/lenovo-x1-disko-basic.nix #TODO define device in hw def file
-          { disko.disk.disk1.device = "/dev/nvme0n1"; }
-          ../../modules/disko/disko-basic-postboot.nix
+          self.nixosModules.disko-lenovo-x1-basic-v1
 
           ./sshkeys.nix
           ({
@@ -48,20 +45,7 @@
           in {
             security.polkit.extraConfig = powerControl.polkitExtraConfig;
 
-            services.udev.extraRules = ''
-              # Laptop keyboard
-              SUBSYSTEM=="input",ATTRS{name}=="AT Translated Set 2 keyboard",GROUP="kvm"
-              # Laptop touchpad
-              SUBSYSTEM=="input",ATTRS{name}=="SYNA8016:00 06CB:CEB3 Mouse",KERNEL=="event*",GROUP="kvm",SYMLINK+="mouse"
-              SUBSYSTEM=="input",ATTRS{name}=="SYNA8016:00 06CB:CEB3 Touchpad",KERNEL=="event*",GROUP="kvm",SYMLINK+="touchpad"
-              # Laptop touchpad - UAE revision
-              SUBSYSTEM=="input",ATTRS{name}=="ELAN067C:00 04F3:31F9 Mouse",KERNEL=="event*",GROUP="kvm",SYMLINK+="mouse"
-              SUBSYSTEM=="input",ATTRS{name}=="ELAN067C:00 04F3:31F9 Touchpad",KERNEL=="event*",GROUP="kvm",SYMLINK+="touchpad"
-              # Laptop TrackPoint
-              SUBSYSTEM=="input",ATTRS{name}=="TPPS/2 Elan TrackPoint",GROUP="kvm"
-              # Lenovo X1 integrated webcam
-              SUBSYSTEM=="usb", ATTR{idVendor}=="04f2", ATTR{idProduct}=="b751", GROUP="kvm"
-            '';
+            services.udev.extraRules = hwDefinition.udevRules;
 
             time.timeZone = "Asia/Dubai";
 
@@ -79,6 +63,8 @@
 
             environment.etc.${config.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = import ./getAuthKeysSource.nix {inherit pkgs config;};
             services.openssh = config.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
+
+            disko.devices.disk = config.ghaf.hardware.definition.disks;
 
             ghaf = {
               hardware.definition = hwDefinition;
@@ -117,7 +103,7 @@
               };
               virtualization.microvm.appvm = {
                 enable = true;
-                vms = import ./appvms/default.nix {inherit pkgs;};
+                vms = import ./appvms/default.nix {inherit config pkgs;};
               };
 
               # Enable all the default UI applications
@@ -160,10 +146,12 @@
     };
   in {
     inherit hostConfiguration;
-    name = "${name}-${variant}";
+    name = "${name}-${generation}-${variant}";
     package = hostConfiguration.config.system.build.diskoImages;
   };
 in [
-  (lenovo-x1 "debug" debugModules)
-  (lenovo-x1 "release" releaseModules)
+  (lenovo-x1 "gen10" "debug" debugModules)
+  (lenovo-x1 "gen11" "debug" debugModules)
+  (lenovo-x1 "gen10" "release" releaseModules)
+  (lenovo-x1 "gen11" "release" releaseModules)
 ]

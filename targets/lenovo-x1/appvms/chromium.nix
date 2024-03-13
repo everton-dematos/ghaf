@@ -1,8 +1,9 @@
 # Copyright 2024 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-{pkgs, ...}: let
+{config, pkgs, ...}: let
   xdgPdfPort = 1200;
+  usbCamera = config.ghaf.hardware.definition.usb.camera;
 in {
   name = "chromium";
   packages = let
@@ -44,7 +45,7 @@ in {
         "-device"
         "qemu-xhci"
         "-device"
-        "usb-host,vendorid=0x04f2,productid=0xb751"
+        "usb-host,vendorid=0x${usbCamera.vendorId},productid=0x${usbCamera.productId}"
         # Connect sound device to hosts pulseaudio socket
         "-audiodev"
         "pa,id=pa1,server=unix:/run/pulse/native"
