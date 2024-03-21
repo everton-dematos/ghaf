@@ -18,5 +18,6 @@
     lanzaboote.imports = [./lanzaboote];
     microvm.imports = [./microvm];
     polarfire.imports = [./polarfire];
+    srta.imports = [./srta];
   };
 }

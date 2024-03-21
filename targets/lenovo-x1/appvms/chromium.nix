@@ -1,7 +1,11 @@
 # Copyright 2024 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-{config, pkgs, ...}: let
+{
+  config,
+  pkgs,
+  ...
+}: let
   xdgPdfPort = 1200;
   usbCamera = config.ghaf.hardware.definition.usb.camera;
 in {
