@@ -16,8 +16,8 @@ in
     config = mkIf cfg.enable {
       environment.systemPackages = with pkgs; [
           # Python 3
-          pkgs.libpcap
-          (pkgs.python3.withPackages (ps:
+          libpcap
+          (python3.withPackages (ps:
             with ps; [
               numpy
               pandas
@@ -40,10 +40,10 @@ in
             ]))
 
           # Git
-          pkgs.git
+          git
 
           # Network Analyzer
-          pkgs.tcpdump
+          tcpdump
           #wireshark
       ];
     };
