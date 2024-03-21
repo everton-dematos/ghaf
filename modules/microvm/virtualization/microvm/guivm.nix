@@ -60,36 +60,6 @@
             pkgs.waypipe
             pkgs.networkmanagerapplet
             pkgs.nm-launcher
-            # Python 3
-            pkgs.libpcap
-            (pkgs.python3.withPackages (ps:
-              with ps; [
-                numpy
-                pandas
-                scipy
-                scikit-learn
-                tqdm
-                dpkt
-                matplotlib
-                cycler
-                libpcap
-                pcapy-ng
-                pytestCheckHook
-                #pypcap
-                (import ./my_pypcap.nix {
-                  inherit (pkgs) lib fetchFromGitHub libpcap;
-                  inherit (pkgs.python3Packages) buildPythonPackage dpkt pytestCheckHook;
-                })
-                torch
-                netifaces
-              ]))
-
-            # Git
-            pkgs.git
-
-            # Network Analyzer
-            pkgs.tcpdump
-            #wireshark
           ];
         };
 
