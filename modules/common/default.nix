@@ -19,5 +19,6 @@
     ./networking
     ../hardware/definition.nix
     ./logging
+    ./srta
   ];
 }

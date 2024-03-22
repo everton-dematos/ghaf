@@ -43,7 +43,10 @@ let
           imports = [ ../../../common ];
 
           ghaf = {
-            users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
+            # Enable LDPI module
+          srta.ldpi.tools.enable = true;
+
+          users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
             profiles.debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
             development = {
               # NOTE: SSH port also becomes accessible on the network interface
