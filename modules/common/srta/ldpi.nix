@@ -28,9 +28,6 @@ in
               matplotlib
               cycler
               libpcap
-              pcapy-ng
-              pytestCheckHook
-              #pypcap
               (import ./my_pypcap.nix {
                 inherit (pkgs) lib fetchFromGitHub libpcap;
                 inherit (pkgs.python3Packages) buildPythonPackage dpkt pytestCheckHook;
@@ -44,7 +41,6 @@ in
 
           # Network Analyzer
           tcpdump
-          #wireshark
       ];
     };
   }
