@@ -14,6 +14,9 @@
       (import ./common/vm-networking.nix {inherit vmName macAddress;})
       ({lib, ...}: {
         ghaf = {
+          # Enable LDPI module
+          srta.ldpi.tools.enable = true;
+
           users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
           development = {
             # NOTE: SSH port also becomes accessible on the network interface

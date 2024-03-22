@@ -16,5 +16,6 @@
     ./version
     ./virtualization/docker.nix
     ./systemd
+    ./srta
   ];
 }
