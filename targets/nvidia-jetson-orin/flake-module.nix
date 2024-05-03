@@ -58,13 +58,14 @@
               };
 
               hardware.nvidia = {
-                virtualization.enable = false;
+                virtualization.enable = true;
                 virtualization.host.bpmp.enable = false;
                 passthroughs.host.uarta.enable = false;
+                passthroughs.uarti_net_vm.enable = som == "agx";
               };
 
               virtualization.microvm-host.enable = true;
-              virtualization.microvm-host.hostNetworkSupport = true;
+              virtualization.microvm-host.networkSupport = true;
               host.networking.enable = true;
 
               virtualization.microvm.netvm.enable = true;

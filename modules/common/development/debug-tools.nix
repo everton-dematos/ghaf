@@ -37,10 +37,13 @@ in
           # Performance testing
           speedtest-cli
           iperf
+          # Match perf version with kernel.
+          config.boot.kernelPackages.perf
         ]
-        ++
-        # LuaJIT (which is sysbench dependency) not available on RISC-V
         # TODO Can this be changed to platformPkgs to filter ?
-        lib.optional (config.nixpkgs.hostPlatform.system != "riscv64-linux") sysbench;
+        # LuaJIT (which is sysbench dependency) not available on RISC-V
+        ++ lib.optional (config.nixpkgs.hostPlatform.system != "riscv64-linux") sysbench
+        # runtimeShell (unixbench dependency) not available on RISC-V nor on cross-compiled Orin AGX/NX
+        ++ lib.optional (stdenv.hostPlatform == stdenv.buildPlatform) unixbench;
     };
   }

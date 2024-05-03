@@ -45,9 +45,10 @@
           {
             ghaf = {
               hardware.x86_64.common.enable = true;
+              hardware.ax88179_178a.enable = true;
 
               virtualization.microvm-host.enable = true;
-              virtualization.microvm-host.hostNetworkSupport = true;
+              virtualization.microvm-host.networkSupport = true;
               host.networking.enable = true;
               virtualization.microvm.netvm = {
                 enable = true;
@@ -59,6 +60,8 @@
                 applications.enable = true;
                 release.enable = variant == "release";
                 debug.enable = variant == "debug";
+                # Uncomment this line to use Labwc instead of Weston:
+                #graphics.compositor = "labwc";
               };
               windows-launcher.enable = true;
             };

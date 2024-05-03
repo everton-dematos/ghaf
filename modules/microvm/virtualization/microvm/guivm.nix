@@ -19,6 +19,7 @@
       }: {
         ghaf = {
           users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
+          profiles.debug.enable = lib.mkDefault configHost.ghaf.profiles.debug.enable;
           profiles.graphics.enable = true;
           # To enable screen locking set graphics.labwc.lock to true
           graphics.labwc.lock.enable = false;
@@ -82,8 +83,8 @@
           shares = [
             {
               tag = "rw-waypipe-ssh-public-key";
-              source = "/run/waypipe-ssh-public-key";
-              mountPoint = "/run/waypipe-ssh-public-key";
+              source = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+              mountPoint = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
             }
             {
               tag = "ro-store";
@@ -93,10 +94,20 @@
           ];
           writableStoreOverlay = lib.mkIf config.ghaf.development.debug.tools.enable "/nix/.rw-store";
 
-          qemu.extraArgs = [
-            "-device"
-            "vhost-vsock-pci,guest-cid=${toString cfg.vsockCID}"
-          ];
+          qemu = {
+            extraArgs = [
+              "-device"
+              "vhost-vsock-pci,guest-cid=${toString cfg.vsockCID}"
+            ];
+
+            machine =
+              {
+                # Use the same machine type as the host
+                x86_64-linux = "q35";
+                aarch64-linux = "virt";
+              }
+              .${configHost.nixpkgs.hostPlatform.system};
+          };
         };
 
         imports = [
@@ -189,8 +200,8 @@ in {
     # This directory needs to be created before any of the microvms start.
     systemd.services."create-waypipe-ssh-public-key-directory" = let
       script = pkgs.writeShellScriptBin "create-waypipe-ssh-public-key-directory" ''
-        mkdir -pv /run/waypipe-ssh-public-key
-        chown -v microvm /run/waypipe-ssh-public-key
+        mkdir -pv ${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
+        chown -v microvm ${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
       '';
     in {
       enable = true;
