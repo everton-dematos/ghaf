@@ -17,6 +17,9 @@
           # Enable LDPI module
           srta.ldpi.tools.enable = true;
 
+          # Enable Caldera Tools
+          srta.caldera.tools.enable = true;
+
           users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
           development = {
             # NOTE: SSH port also becomes accessible on the network interface
