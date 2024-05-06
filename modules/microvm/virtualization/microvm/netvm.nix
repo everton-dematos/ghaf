@@ -9,6 +9,14 @@
   configHost = config;
   vmName = "net-vm";
   macAddress = "02:00:00:01:01:01";
+
+  isGuiVmEnabled = config.ghaf.virtualization.microvm.guivm.enable;
+
+  sshKeysHelper = pkgs.callPackage ../../../../packages/ssh-keys-helper {
+    inherit pkgs;
+    inherit config;
+  };
+
   netvmBaseConfiguration = {
     imports = [
       (import ./common/vm-networking.nix {inherit vmName macAddress;})
@@ -40,8 +48,6 @@
 
         nixpkgs.buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
         nixpkgs.hostPlatform.system = configHost.nixpkgs.hostPlatform.system;
-
-        microvm.hypervisor = "qemu";
 
         networking = {
           firewall.allowedTCPPorts = [53];
@@ -94,15 +100,45 @@
 
         microvm = {
           optimize.enable = true;
-          shares = [
-            {
-              tag = "ro-store";
-              source = "/nix/store";
-              mountPoint = "/nix/.ro-store";
-            }
-          ];
+          hypervisor = "qemu";
+          shares =
+            [
+              {
+                tag = "ro-store";
+                source = "/nix/store";
+                mountPoint = "/nix/.ro-store";
+              }
+            ]
+            ++ lib.optionals isGuiVmEnabled [
+              {
+                # Add the waypipe-ssh public key to the microvm
+                tag = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyName;
+                source = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+                mountPoint = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+              }
+            ];
+
           writableStoreOverlay = lib.mkIf config.ghaf.development.debug.tools.enable "/nix/.rw-store";
+          qemu = {
+            machine =
+              {
+                # Use the same machine type as the host
+                x86_64-linux = "q35";
+                aarch64-linux = "virt";
+              }
+              .${configHost.nixpkgs.hostPlatform.system};
+          };
         };
+
+        fileSystems = lib.mkIf isGuiVmEnabled {${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}.options = ["ro"];};
+
+        # SSH is very picky about to file permissions and ownership and will
+        # accept neither direct path inside /nix/store or symlink that points
+        # there. Therefore we copy the file to /etc/ssh/get-auth-keys (by
+        # setting mode), instead of symlinking it.
+        environment.etc = lib.mkIf isGuiVmEnabled {${configHost.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = sshKeysHelper.getAuthKeysSource;};
+
+        services.openssh = lib.mkIf isGuiVmEnabled configHost.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
 
         imports = [../../../common];
       })

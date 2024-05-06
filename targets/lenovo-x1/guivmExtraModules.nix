@@ -43,23 +43,36 @@
       hostAddress = "192.168.101.2";
       powerControl = pkgs.callPackage ../../packages/powercontrol {};
       powerControlIcons = pkgs.gnome.callPackage ../../packages/powercontrol/png-icons.nix {};
+      privateSshKeyPath = configH.ghaf.security.sshKeys.sshKeyPath;
     in [
       {
         name = "chromium";
-        path = "${pkgs.openssh}/bin/ssh -i ${configH.ghaf.security.sshKeys.sshKeyPath} -o StrictHostKeyChecking=no chromium-vm.ghaf run-waypipe chromium --enable-features=UseOzonePlatform --ozone-platform=wayland";
+        path = "${pkgs.openssh}/bin/ssh -i ${privateSshKeyPath} -o StrictHostKeyChecking=no chromium-vm.ghaf run-waypipe chromium --enable-features=UseOzonePlatform --ozone-platform=wayland";
         icon = "${../../assets/icons/png/browser.png}";
       }
 
       {
         name = "gala";
-        path = "${pkgs.openssh}/bin/ssh -i ${configH.ghaf.security.sshKeys.sshKeyPath} -o StrictHostKeyChecking=no gala-vm.ghaf run-waypipe gala --enable-features=UseOzonePlatform --ozone-platform=wayland";
+        path = "${pkgs.openssh}/bin/ssh -i ${privateSshKeyPath} -o StrictHostKeyChecking=no gala-vm.ghaf run-waypipe gala --enable-features=UseOzonePlatform --ozone-platform=wayland";
         icon = "${../../assets/icons/png/app.png}";
       }
 
       {
         name = "zathura";
-        path = "${pkgs.openssh}/bin/ssh -i ${configH.ghaf.security.sshKeys.sshKeyPath} -o StrictHostKeyChecking=no zathura-vm.ghaf run-waypipe zathura";
+        path = "${pkgs.openssh}/bin/ssh -i ${privateSshKeyPath} -o StrictHostKeyChecking=no zathura-vm.ghaf run-waypipe zathura";
         icon = "${../../assets/icons/png/pdf.png}";
+      }
+
+      {
+        name = "element";
+        path = "${pkgs.openssh}/bin/ssh -i ${configH.ghaf.security.sshKeys.sshKeyPath} -o StrictHostKeyChecking=no element-vm.ghaf run-waypipe element-desktop --enable-features=UseOzonePlatform --ozone-platform=wayland";
+        icon = "${../../assets/icons/png/element.png}";
+      }
+
+      {
+        name = "appflowy";
+        path = "${pkgs.openssh}/bin/ssh -i ${configH.ghaf.security.sshKeys.sshKeyPath} -o StrictHostKeyChecking=no appflowy-vm.ghaf run-waypipe appflowy";
+        icon = "${../../assets/icons/svg/appflowy.svg}";
       }
 
       {
@@ -78,7 +91,7 @@
         name = "poweroff";
         path = "${powerControl.makePowerOffCommand {
           inherit hostAddress;
-          inherit (configH.ghaf.security.sshKeys) sshKeyPath;
+          inherit privateSshKeyPath;
         }}";
         icon = "${powerControlIcons}/${powerControlIcons.relativeShutdownIconPath}";
       }
@@ -87,20 +100,20 @@
         name = "reboot";
         path = "${powerControl.makeRebootCommand {
           inherit hostAddress;
-          inherit (configH.ghaf.security.sshKeys) sshKeyPath;
+          inherit privateSshKeyPath;
         }}";
         icon = "${powerControlIcons}/${powerControlIcons.relativeRebootIconPath}";
       }
 
       # Temporarly disabled as it doesn't work stable
       # {
-      #   path = powerControl.makeSuspendCommand {inherit hostAddress sshKeyPath;};
+      #   path = powerControl.makeSuspendCommand {inherit hostAddress waypipeSshPublicKeyFile;};
       #   icon = "${adwaitaIconsRoot}/media-playback-pause-symbolic.symbolic.png";
       # }
 
       # Temporarly disabled as it doesn't work at all
       # {
-      #   path = powerControl.makeHibernateCommand {inherit hostAddress sshKeyPath;};
+      #   path = powerControl.makeHibernateCommand {inherit hostAddress waypipeSshPublicKeyFile;};
       #   icon = "${adwaitaIconsRoot}/media-record-symbolic.symbolic.png";
       # }
     ];
@@ -136,23 +149,24 @@
     # Early KMS needed for GNOME to work inside GuiVM
     boot.initrd.kernelModules = ["i915"];
 
-    microvm.qemu.extraArgs = [
-      # Lenovo X1 Lid button
-      "-device"
-      "button"
-      # Lenovo X1 battery
-      "-device"
-      "battery"
-      # Lenovo X1 AC adapter
-      "-device"
-      "acad"
-      # Connect sound device to hosts pulseaudio socket
-      "-audiodev"
-      "pa,id=pa1,server=unix:/run/pulse/native"
-    ];
+    microvm.qemu = {
+      extraArgs = [
+        # Lenovo X1 Lid button
+        "-device"
+        "button"
+        # Lenovo X1 battery
+        "-device"
+        "battery"
+        # Lenovo X1 AC adapter
+        "-device"
+        "acad"
+        # Connect sound device to hosts pulseaudio socket
+        "-audiodev"
+        "pa,id=pa1,server=unix:/run/pulse/native"
+      ];
+    };
   };
 in [
-  ./sshkeys.nix
   guivmPCIPassthroughModule
   guivmVirtioInputHostEvdevModule
   guivmExtraConfigurations

@@ -35,7 +35,6 @@
 
           self.nixosModules.disko-lenovo-x1-basic-v1
 
-          ./sshkeys.nix
           ({
             pkgs,
             config,
@@ -59,9 +58,6 @@
             hardware.pulseaudio.extraConfig = "load-module module-combine-sink module-native-protocol-unix auth-anonymous=1";
             users.extraUsers.microvm.extraGroups = ["audio" "pulse-access"];
 
-            environment.etc.${config.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = import ./getAuthKeysSource.nix {inherit pkgs config;};
-            services.openssh = config.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
-
             disko.devices.disk = config.ghaf.hardware.definition.disks;
 
             ghaf = {
@@ -78,12 +74,16 @@
               host.kernel.hardening.hypervisor.enable = false;
 
               hardware.x86_64.common.enable = true;
+              hardware.ax88179_178a.enable = true;
 
               security.tpm2.enable = true;
 
               virtualization.microvm-host.enable = true;
-              virtualization.microvm-host.hostNetworkSupport = true;
+              virtualization.microvm-host.networkSupport = true;
+
               host.networking.enable = true;
+              host.powercontrol.enable = true;
+
               virtualization.microvm.netvm = {
                 enable = true;
                 extraModules = import ./netvmExtraModules.nix {
@@ -102,7 +102,7 @@
               };
               virtualization.microvm.appvm = {
                 enable = true;
-                vms = import ./appvms/default.nix {inherit pkgs;};
+                vms = import ./appvms/default.nix {inherit pkgs config;};
               };
 
               # Enable all the default UI applications
@@ -130,7 +130,7 @@
                 ++ config.ghaf.hardware.definition.gpu.pciDevices
               ));
             in [
-              "intel_iommu=on,igx_off,sm_on"
+              "intel_iommu=on,sm_on"
               "iommu=pt"
               # Prevent i915 module from being accidentally used by host
               "module_blacklist=i915"
