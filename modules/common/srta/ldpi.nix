@@ -41,6 +41,7 @@ in
 
           # Network Analyzer
           tcpdump
+          hey
       ];
     };
   }

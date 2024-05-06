@@ -6,5 +6,6 @@
 {
   imports = [
     ./ldpi.nix
+    ./caldera.nix
   ];
 }
