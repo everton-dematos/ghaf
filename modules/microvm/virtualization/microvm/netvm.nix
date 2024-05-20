@@ -1,4 +1,4 @@
-# Copyright 2022-2023 TII (SSRC) and the Ghaf contributors
+# Copyright 2022-2024 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
 {
   config,
@@ -7,9 +7,12 @@
   ...
 }: let
   configHost = config;
-  vmName = "admin-vm";
-  macAddress = "02:00:00:05:05:05";
-  adminvmBaseConfiguration = {
+  vmName = "net-vm";
+  macAddress = "02:00:00:01:01:01";
+
+  ramMb = 4092;
+
+  netvmBaseConfiguration = {
     imports = [
       (import ./common/vm-networking.nix {inherit vmName macAddress;})
       ({lib, ...}: {
@@ -20,8 +23,8 @@
             #       that has been passed through to NetVM
             ssh.daemon.enable = lib.mkDefault configHost.ghaf.development.ssh.daemon.enable;
             debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
+            nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
           };
-          policy.opa.enable = true;
         };
 
         system.stateVersion = lib.trivial.release;
@@ -29,9 +32,39 @@
         nixpkgs.buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
         nixpkgs.hostPlatform.system = configHost.nixpkgs.hostPlatform.system;
 
-        environment.systemPackages = let
-          tetragon = pkgs.callPackage ../../../../packages/tetragon {};
-        in [tetragon];
+        microvm.hypervisor = "qemu";
+
+        networking = {
+          firewall.allowedTCPPorts = [53];
+          firewall.allowedUDPPorts = [53];
+        };
+
+        # Add simple wi-fi connection helper
+        environment.systemPackages = lib.mkIf config.ghaf.profiles.debug.enable [pkgs.wifi-connector];
+
+        # Dnsmasq is used as a DHCP/DNS server inside the NetVM
+        services.dnsmasq = {
+          enable = true;
+          resolveLocalQueries = true;
+          settings = {
+            server = ["8.8.8.8"];
+            dhcp-range = ["192.168.100.2,192.168.100.254"];
+            dhcp-sequential-ip = true;
+            dhcp-authoritative = true;
+            domain = "ghaf";
+            listen-address = ["127.0.0.1,192.168.100.1"];
+            dhcp-option = [
+              "option:router,192.168.100.1"
+              "6,192.168.100.1"
+            ];
+            expand-hosts = true;
+            domain-needed = true;
+            bogus-priv = true;
+          };
+        };
+
+        # Disable resolved since we are using Dnsmasq
+        services.resolved.enable = false;
 
         systemd.network = {
           enable = true;
@@ -39,8 +72,11 @@
             matchConfig.MACAddress = macAddress;
             addresses = [
               {
+                addressConfig.Address = "192.168.100.1/24";
+              }
+              {
                 # IP-address for debugging subnet
-                addressConfig.Address = "192.168.101.5/24";
+                addressConfig.Address = "192.168.101.1/24";
               }
             ];
             linkConfig.ActivationPolicy = "always-up";
@@ -48,9 +84,6 @@
         };
 
         microvm = {
-          hypervisor = "qemu";
-          vcpu = 1;
-          mem = 2048;
           optimize.enable = true;
           shares = [
             {
@@ -62,19 +95,19 @@
           writableStoreOverlay = lib.mkIf config.ghaf.development.debug.tools.enable "/nix/.rw-store";
         };
 
-        imports = import ../../module-list.nix;
+        imports = [../../../common];
       })
     ];
   };
-  cfg = config.ghaf.virtualization.microvm.adminvm;
+  cfg = config.ghaf.virtualization.microvm.netvm;
 in {
-  options.ghaf.virtualization.microvm.adminvm = {
-    enable = lib.mkEnableOption "AdminVM";
+  options.ghaf.virtualization.microvm.netvm = {
+    enable = lib.mkEnableOption "NetVM";
 
     extraModules = lib.mkOption {
       description = ''
         List of additional modules to be imported and evaluated as part of
-        AdminVM's NixOS configuration.
+        NetVM's NixOS configuration.
       '';
       default = [];
     };
@@ -84,13 +117,12 @@ in {
     microvm.vms."${vmName}" = {
       autostart = true;
       config =
-        adminvmBaseConfiguration
+        netvmBaseConfiguration
         // {
           imports =
-            adminvmBaseConfiguration.imports
+            netvmBaseConfiguration.imports
             ++ cfg.extraModules;
         };
-      specialArgs = {inherit lib;};
     };
   };
 }

@@ -7,8 +7,7 @@
   pkgs,
   lib,
   ...
-}:
-let
+}: let
   srcPath = "install/linux-tarball";
 in
   stdenv.mkDerivation rec {

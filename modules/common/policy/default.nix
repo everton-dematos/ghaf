@@ -5,5 +5,6 @@
     ./server/opa.nix
     ./clients/opa-iptable-client.nix
     ./clients/tetragon.nix
+    ./server/browserKiller.nix
   ];
 }

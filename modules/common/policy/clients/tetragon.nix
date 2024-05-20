@@ -10,28 +10,24 @@
   tetragon = pkgs.callPackage ../../../../packages/tetragon {};
 in
   with lib; {
-
     options.ghaf.policy.tetragon = {
-
       enable = lib.mkOption {
         description = "Enable tetragon policy client.";
         type = lib.types.bool;
         default = true;
       };
-
     };
 
     config = lib.mkIf cfg.enable {
-
       systemd.services.tetragon = {
         description = "Tetragon eBPF-based Security Observability and Runtime Enforcement";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "network.target" "local-fs.target" ];
+        wantedBy = ["multi-user.target"];
+        after = ["network.target" "local-fs.target"];
         serviceConfig = {
           Type = "simple";
           User = "root";
           Group = "root";
-          Environment="PATH=${tetragon}/lib/tetragon/:${tetragon}/lib:${tetragon}/bin";
+          Environment = "PATH=${tetragon}/lib/tetragon/:${tetragon}/lib:${tetragon}/bin";
           ExecStart = "${tetragon}/bin/tetragon --bpf-lib ${tetragon}/lib/tetragon/bpf --server-address 0.0.0.0:3333 ";
           StartLimitBurst = 10;
           StartLimitIntervalSec = 120;
@@ -43,10 +39,8 @@ in
       };
 
       environment.systemPackages = with pkgs; [tetragon];
-       networking = {
-         firewall.allowedTCPPorts = [ 3333 ];
-       };
-
+      networking = {
+        firewall.allowedTCPPorts = [3333 2112 5555];
+      };
     };
-
-}
+  }
