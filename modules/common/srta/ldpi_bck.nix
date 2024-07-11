@@ -42,6 +42,9 @@ in
           # Network Analyzer
           tcpdump
           hey
+
+          # Load Generator
+          stress-ng
       ];
     };
   }
