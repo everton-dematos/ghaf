@@ -4,7 +4,11 @@
 # Modules to be exported from Flake
 #
 {inputs, ...}: {
-  imports = [./disko/flake-module.nix];
+  imports = [
+    ./disko/flake-module.nix
+    ./hardware/flake-module.nix
+    ./microvm/flake-module.nix
+  ];
 
   flake.nixosModules = {
     common.imports = [
@@ -13,10 +17,14 @@
     ];
     desktop.imports = [./desktop];
     host.imports = [./host];
+    imx8.imports = [./imx8];
     jetpack.imports = [./jetpack];
     jetpack-microvm.imports = [./jetpack-microvm];
     lanzaboote.imports = [./lanzaboote];
-    microvm.imports = [./microvm];
     polarfire.imports = [./polarfire];
+    profiles.imports = [./profiles];
+    reference-appvms.imports = [./reference/appvms];
+    reference-programs.imports = [./reference/programs];
+    reference-services.imports = [./reference/services];
   };
 }

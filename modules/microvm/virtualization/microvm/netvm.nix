@@ -6,7 +6,6 @@
   pkgs,
   ...
 }: let
-  configHost = config;
   vmName = "net-vm";
   macAddress = "02:00:00:01:01:01";
 
@@ -19,8 +18,16 @@
 
   netvmBaseConfiguration = {
     imports = [
-      (import ./common/vm-networking.nix {inherit vmName macAddress;})
+      (import ./common/vm-networking.nix {
+        inherit config lib vmName macAddress;
+        internalIP = 1;
+        gateway = [];
+      })
       ({lib, ...}: {
+        imports = [
+          ../../../common
+        ];
+
         ghaf = {
           # Enable LDPI module
           srta.ldpi.tools.enable = true;
@@ -28,75 +35,39 @@
           # Enable Caldera Tools
           srta.caldera.tools.enable = true;
 
-          users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
+          users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
+          profiles.debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
           development = {
             # NOTE: SSH port also becomes accessible on the network interface
             #       that has been passed through to NetVM
-            ssh.daemon.enable = lib.mkDefault configHost.ghaf.development.ssh.daemon.enable;
-            debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
-            nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
+            ssh.daemon.enable = lib.mkDefault config.ghaf.development.ssh.daemon.enable;
+            debug.tools.enable = lib.mkDefault config.ghaf.development.debug.tools.enable;
+            nix-setup.enable = lib.mkDefault config.ghaf.development.nix-setup.enable;
           };
           systemd = {
             enable = true;
             withName = "netvm-systemd";
             withPolkit = true;
-            withDebug = configHost.ghaf.profiles.debug.enable;
+            withResolved = true;
+            withDebug = config.ghaf.profiles.debug.enable;
+            withHardenedConfigs = true;
           };
         };
 
+        time.timeZone = config.time.timeZone;
         system.stateVersion = lib.trivial.release;
 
-        nixpkgs.buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
-        nixpkgs.hostPlatform.system = configHost.nixpkgs.hostPlatform.system;
+        nixpkgs = {
+          buildPlatform.system = config.nixpkgs.buildPlatform.system;
+          hostPlatform.system = config.nixpkgs.hostPlatform.system;
+        };
 
         networking = {
           firewall.allowedTCPPorts = [53];
           firewall.allowedUDPPorts = [53];
         };
 
-        # Add simple wi-fi connection helper
-        environment.systemPackages = lib.mkIf config.ghaf.profiles.debug.enable [pkgs.wifi-connector];
-
-        # Dnsmasq is used as a DHCP/DNS server inside the NetVM
-        services.dnsmasq = {
-          enable = true;
-          resolveLocalQueries = true;
-          settings = {
-            server = ["8.8.8.8"];
-            dhcp-range = ["192.168.100.2,192.168.100.254"];
-            dhcp-sequential-ip = true;
-            dhcp-authoritative = true;
-            domain = "ghaf";
-            listen-address = ["127.0.0.1,192.168.100.1"];
-            dhcp-option = [
-              "option:router,192.168.100.1"
-              "6,192.168.100.1"
-            ];
-            expand-hosts = true;
-            domain-needed = true;
-            bogus-priv = true;
-          };
-        };
-
-        # Disable resolved since we are using Dnsmasq
-        services.resolved.enable = false;
-
-        systemd.network = {
-          enable = true;
-          networks."10-ethint0" = {
-            matchConfig.MACAddress = macAddress;
-            addresses = [
-              {
-                addressConfig.Address = "192.168.100.1/24";
-              }
-              {
-                # IP-address for debugging subnet
-                addressConfig.Address = "192.168.101.1/24";
-              }
-            ];
-            linkConfig.ActivationPolicy = "always-up";
-          };
-        };
+        services.openssh = config.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
 
         microvm = {
           optimize.enable = true;
@@ -112,9 +83,9 @@
             ++ lib.optionals isGuiVmEnabled [
               {
                 # Add the waypipe-ssh public key to the microvm
-                tag = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyName;
-                source = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
-                mountPoint = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+                tag = config.ghaf.security.sshKeys.waypipeSshPublicKeyName;
+                source = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+                mountPoint = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
               }
             ];
 
@@ -126,21 +97,17 @@
                 x86_64-linux = "q35";
                 aarch64-linux = "virt";
               }
-              .${configHost.nixpkgs.hostPlatform.system};
+              .${config.nixpkgs.hostPlatform.system};
           };
         };
 
-        fileSystems = lib.mkIf isGuiVmEnabled {${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}.options = ["ro"];};
+        fileSystems = lib.mkIf isGuiVmEnabled {${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}.options = ["ro"];};
 
         # SSH is very picky about to file permissions and ownership and will
         # accept neither direct path inside /nix/store or symlink that points
         # there. Therefore we copy the file to /etc/ssh/get-auth-keys (by
         # setting mode), instead of symlinking it.
-        environment.etc = lib.mkIf isGuiVmEnabled {${configHost.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = sshKeysHelper.getAuthKeysSource;};
-
-        services.openssh = lib.mkIf isGuiVmEnabled configHost.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
-
-        imports = [../../../common];
+        environment.etc = lib.mkIf isGuiVmEnabled {${config.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = sshKeysHelper.getAuthKeysSource;};
       })
     ];
   };
@@ -161,6 +128,7 @@ in {
   config = lib.mkIf cfg.enable {
     microvm.vms."${vmName}" = {
       autostart = true;
+      restartIfChanged = false;
       config =
         netvmBaseConfiguration
         // {

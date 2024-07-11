@@ -6,30 +6,36 @@
   self,
   ...
 }: let
-  inherit (inputs) microvm nixos-generators;
+  inherit (inputs) nixos-generators;
   name = "vm";
   system = "x86_64-linux";
   vm = variant: let
     hostConfiguration = lib.nixosSystem {
       inherit system;
       modules = [
-        microvm.nixosModules.host
         nixos-generators.nixosModules.vm
         self.nixosModules.common
         self.nixosModules.desktop
         self.nixosModules.host
         self.nixosModules.microvm
+        self.nixosModules.hw-x86_64-generic
 
         {
           ghaf = {
             hardware.x86_64.common.enable = true;
 
-            virtualization.microvm-host.enable = true;
-            virtualization.microvm-host.networkSupport = true;
+            virtualization = {
+              microvm-host = {
+                enable = true;
+                networkSupport = true;
+              };
+
+              # TODO: NetVM enabled, but it does not include anything specific
+              #       for this Virtual Machine target
+              microvm.netvm.enable = true;
+            };
+
             host.networking.enable = true;
-            # TODO: NetVM enabled, but it does not include anything specific
-            #       for this Virtual Machine target
-            virtualization.microvm.netvm.enable = true;
 
             # Enable all the default UI applications
             profiles = {

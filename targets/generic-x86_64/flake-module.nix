@@ -8,7 +8,7 @@
   self,
   ...
 }: let
-  inherit (inputs) microvm nixos-generators;
+  inherit (inputs) nixos-generators;
   name = "generic-x86_64";
   system = "x86_64-linux";
   generic-x86 = variant: extraModules: let
@@ -29,31 +29,41 @@
 
           # networks."SSID_OF_NETWORK".psk = "WPA_PASSWORD";
         };
+        services.dnsmasq.settings.dhcp-option = [
+          "option:router,192.168.100.1" # set net-vm as a default gw
+          "option:dns-server,192.168.100.1"
+        ];
       }
     ];
     hostConfiguration = lib.nixosSystem {
       inherit system;
       modules =
         [
-          microvm.nixosModules.host
           nixos-generators.nixosModules.raw-efi
           self.nixosModules.common
           self.nixosModules.desktop
           self.nixosModules.host
           self.nixosModules.microvm
+          self.nixosModules.hw-x86_64-generic
+          self.nixosModules.reference-programs
 
           {
             ghaf = {
               hardware.x86_64.common.enable = true;
-              hardware.ax88179_178a.enable = true;
 
-              virtualization.microvm-host.enable = true;
-              virtualization.microvm-host.networkSupport = true;
-              host.networking.enable = true;
-              virtualization.microvm.netvm = {
-                enable = true;
-                extraModules = netvmExtraModules;
+              virtualization = {
+                microvm-host = {
+                  enable = true;
+                  networkSupport = true;
+                };
+
+                microvm.netvm = {
+                  enable = true;
+                  extraModules = netvmExtraModules;
+                };
               };
+
+              host.networking.enable = true;
 
               # Enable all the default UI applications
               profiles = {
@@ -63,7 +73,7 @@
                 # Uncomment this line to use Labwc instead of Weston:
                 #graphics.compositor = "labwc";
               };
-              windows-launcher.enable = true;
+              reference.programs.windows-launcher.enable = true;
             };
 
             #TODO: how to handle the majority of laptops that need a little

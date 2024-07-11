@@ -9,7 +9,7 @@
   self,
   ...
 }: let
-  inherit (inputs) nixpkgs nixos-generators microvm jetpack-nixos;
+  inherit (inputs) nixpkgs nixos-generators jetpack-nixos;
   name = "nvidia-jetson-orin";
   system = "aarch64-linux";
   nvidia-jetson-orin = som: variant: extraModules: let
@@ -30,6 +30,11 @@
           enableRedistributableFirmware = som == "agx";
           wirelessRegulatoryDatabase = true;
         };
+
+        services.dnsmasq.settings.dhcp-option = [
+          "option:router,192.168.100.1" # set net-vm as a default gw
+          "option:dns-server,192.168.100.1"
+        ];
       }
     ];
     hostConfiguration = lib.nixosSystem {
@@ -40,13 +45,13 @@
           (nixos-generators + "/format-module.nix")
           ../../modules/jetpack/nvidia-jetson-orin/format-module.nix
           jetpack-nixos.nixosModules.default
-          microvm.nixosModules.host
           self.nixosModules.common
           self.nixosModules.desktop
           self.nixosModules.host
           self.nixosModules.jetpack
           self.nixosModules.jetpack-microvm
           self.nixosModules.microvm
+          self.nixosModules.reference-programs
 
           {
             ghaf = {
@@ -64,12 +69,21 @@
                 passthroughs.uarti_net_vm.enable = som == "agx";
               };
 
-              virtualization.microvm-host.enable = true;
-              virtualization.microvm-host.networkSupport = true;
-              host.networking.enable = true;
+              virtualization = {
+                microvm-host = {
+                  enable = true;
+                  networkSupport = true;
+                };
 
-              virtualization.microvm.netvm.enable = true;
-              virtualization.microvm.netvm.extraModules = netvmExtraModules;
+                microvm = {
+                  netvm = {
+                    enable = true;
+                    extraModules = netvmExtraModules;
+                  };
+                };
+              };
+
+              host.networking.enable = true;
 
               # Enable all the default UI applications
               profiles = {
@@ -77,11 +91,14 @@
                 release.enable = variant == "release";
                 debug.enable = variant == "debug";
               };
-              windows-launcher.enable = true;
+              reference.programs.windows-launcher.enable = true;
+              graphics.labwc.renderer = "egl2";
+              # To enable screen locking set to true
+              graphics.labwc.autolock.enable = false;
             };
           }
 
-          (import ./optee.nix {inherit jetpack-nixos;})
+          (import ./optee.nix {})
         ]
         ++ extraModules;
     };

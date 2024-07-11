@@ -6,29 +6,33 @@
   pkgs,
   ...
 }: let
-  configHost = config;
   vmName = "gui-vm";
   macAddress = "02:00:00:02:02:02";
+  inherit (import ../../../../lib/launcher.nix {inherit pkgs lib;}) rmDesktopEntries;
   guivmBaseConfiguration = {
     imports = [
-      (import ./common/vm-networking.nix {inherit vmName macAddress;})
+      (import ./common/vm-networking.nix {
+        inherit config lib vmName macAddress;
+        internalIP = 3;
+      })
       ({
         lib,
         pkgs,
         ...
       }: {
         ghaf = {
-          users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
-          profiles.debug.enable = lib.mkDefault configHost.ghaf.profiles.debug.enable;
-          profiles.graphics.enable = true;
-          # To enable screen locking set graphics.labwc.lock to true
-          graphics.labwc.lock.enable = false;
-          profiles.applications.enable = false;
-          windows-launcher.enable = false;
+          users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
+          profiles = {
+            debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
+            applications.enable = false;
+            graphics.enable = true;
+          };
+          # To enable screen locking set to true
+          graphics.labwc.autolock.enable = false;
           development = {
-            ssh.daemon.enable = lib.mkDefault configHost.ghaf.development.ssh.daemon.enable;
-            debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
-            nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
+            ssh.daemon.enable = lib.mkDefault config.ghaf.development.ssh.daemon.enable;
+            debug.tools.enable = lib.mkDefault config.ghaf.development.debug.tools.enable;
+            nix-setup.enable = lib.mkDefault config.ghaf.development.nix-setup.enable;
           };
           systemd = {
             enable = true;
@@ -36,7 +40,8 @@
             withNss = true;
             withResolved = true;
             withTimesyncd = true;
-            withDebug = configHost.ghaf.profiles.debug.enable;
+            withDebug = config.ghaf.profiles.debug.enable;
+            withHardenedConfigs = true;
           };
         };
 
@@ -63,17 +68,29 @@
         };
 
         environment = {
-          systemPackages = [
-            pkgs.waypipe
-            pkgs.networkmanagerapplet
-            pkgs.nm-launcher
-          ];
+          systemPackages =
+            (rmDesktopEntries [
+              pkgs.waypipe
+              pkgs.networkmanagerapplet
+            ])
+            ++ [
+              pkgs.nm-launcher
+              pkgs.pamixer
+            ]
+            ++ (lib.optional (config.ghaf.profiles.debug.enable && config.ghaf.virtualization.microvm.idsvm.mitmproxy.enable) pkgs.mitmweb-ui);
         };
 
+        time.timeZone = config.time.timeZone;
         system.stateVersion = lib.trivial.release;
 
-        nixpkgs.buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
-        nixpkgs.hostPlatform.system = configHost.nixpkgs.hostPlatform.system;
+        nixpkgs = {
+          buildPlatform.system = config.nixpkgs.buildPlatform.system;
+          hostPlatform.system = config.nixpkgs.hostPlatform.system;
+        };
+
+        # Suspend inside Qemu causes segfault
+        # See: https://gitlab.com/qemu-project/qemu/-/issues/2321
+        services.logind.lidSwitch = "ignore";
 
         microvm = {
           optimize.enable = false;
@@ -83,8 +100,8 @@
           shares = [
             {
               tag = "rw-waypipe-ssh-public-key";
-              source = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
-              mountPoint = configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+              source = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+              mountPoint = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
             }
             {
               tag = "ro-store";
@@ -106,7 +123,7 @@
                 x86_64-linux = "q35";
                 aarch64-linux = "virt";
               }
-              .${configHost.nixpkgs.hostPlatform.system};
+              .${config.nixpkgs.hostPlatform.system};
           };
         };
 
@@ -119,7 +136,7 @@
         systemd.user.services.waypipe = {
           enable = true;
           description = "waypipe";
-          after = ["weston.service" "labwc.service"];
+          after = ["labwc.service"];
           serviceConfig = {
             Type = "simple";
             ExecStart = "${pkgs.waypipe}/bin/waypipe --vsock -s ${toString cfg.waypipePort} client";
@@ -129,13 +146,6 @@
           startLimitIntervalSec = 0;
           wantedBy = ["ghaf-session.target"];
         };
-
-        # Fixed IP-address for debugging subnet
-        systemd.network.networks."10-ethint0".addresses = [
-          {
-            addressConfig.Address = "192.168.101.3/24";
-          }
-        ];
       })
     ];
   };
@@ -143,8 +153,8 @@
   vsockproxy = pkgs.callPackage ../../../../packages/vsockproxy {};
 
   # Importing kernel builder function and building guest_graphics_hardened_kernel
-  buildKernel = import ../../../packages/kernel {inherit config pkgs lib;};
-  config_baseline = ../../hardware/x86_64-generic/kernel/configs/ghaf_host_hardened_baseline-x86;
+  buildKernel = import ../../../../packages/kernel {inherit config pkgs lib;};
+  config_baseline = ../../../hardware/x86_64-generic/kernel/configs/ghaf_host_hardened_baseline-x86;
   guest_graphics_hardened_kernel = buildKernel {inherit config_baseline;};
 in {
   options.ghaf.virtualization.microvm.guivm = {
@@ -200,8 +210,8 @@ in {
     # This directory needs to be created before any of the microvms start.
     systemd.services."create-waypipe-ssh-public-key-directory" = let
       script = pkgs.writeShellScriptBin "create-waypipe-ssh-public-key-directory" ''
-        mkdir -pv ${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
-        chown -v microvm ${configHost.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
+        mkdir -pv ${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
+        chown -v microvm ${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
       '';
     in {
       enable = true;
@@ -224,10 +234,10 @@ in {
     systemd.services.vsockproxy = {
       enable = true;
       description = "vsockproxy";
-      unitConfig = {
-        Type = "simple";
-      };
       serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = "1";
         ExecStart = "${vsockproxy}/bin/vsockproxy ${toString cfg.waypipePort} ${toString cfg.vsockCID} ${toString cfg.waypipePort}";
       };
       wantedBy = ["multi-user.target"];

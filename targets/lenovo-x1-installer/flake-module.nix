@@ -10,7 +10,7 @@
   name = "lenovo-x1-carbon";
   system = "x86_64-linux";
   installer = generation: variant: let
-    imagePath = self.packages.x86_64-linux."${name}-${generation}-${variant}" + "/disk1.raw";
+    imagePath = self.packages.x86_64-linux."${name}-${generation}-${variant}" + "/disk1.raw.zst";
     hostConfiguration = lib.nixosSystem {
       inherit system;
       modules = [
@@ -25,10 +25,7 @@
         in {
           imports = [
             "${toString modulesPath}/installer/cd-dvd/installation-cd-minimal.nix"
-            ../../modules/common/hardware/ax88179_178a.nix
           ];
-
-          ghaf.hardware.ax88179_178a.enable = true;
 
           # SSH key to installer for test automation.
           users.users.nixos.openssh.authorizedKeys.keys = lib.mkIf (variant == "debug") (import ../../modules/common/development/authorized_ssh_keys.nix).authorizedKeys;
@@ -41,6 +38,8 @@
           environment.systemPackages = [
             installScript
           ];
+
+          isoImage.squashfsCompression = "zstd -Xcompression-level 3";
 
           # NOTE: Stop nixos complains about "warning:
           # mdadm: Neither MAILADDR nor PROGRAM has been set. This will cause the `mdmon` service to crash."

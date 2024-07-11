@@ -25,7 +25,9 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+    #TODO: clean this up before merging to main
+    nixpkgs.url = "github:tiiuae/nixpkgs/nixos-unstable-xdg-ffado-2"; #"flake:mylocalnixpkgs"; #
+    #nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     #
     # Flake and repo structuring configurations
@@ -50,7 +52,6 @@
       inputs = {
         nixpkgs.follows = "nixpkgs";
         nixpkgs-stable.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
         flake-compat.follows = "flake-compat";
       };
     };
@@ -102,12 +103,12 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     jetpack-nixos = {
-      url = "github:anduril/jetpack-nixos";
+      url = "github:anduril/jetpack-nixos/793716c1ca29a1be6d9bea84296a933c4acdddc1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     disko = {
-      url = "github:nix-community/disko/master";
+      url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -154,6 +155,9 @@
         ./targets/flake-module.nix
         ./hydrajobs/flake-module.nix
         ./templates/flake-module.nix
+        inputs.flake-root.flakeModule
+        inputs.treefmt-nix.flakeModule
+        inputs.pre-commit-hooks-nix.flakeModule
       ];
 
       #TODO Fix this
