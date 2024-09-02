@@ -42,12 +42,12 @@ let
         {
           imports = [ ../../../common ];
 
-          ghaf = {
-            # Enable LDPI module
-            srta.ldpi.tools.enable = true;
+        ghaf = {
+          # Enable LDPI module
+          srta.ldpi.tools.enable = true;
 
-            # Enable Caldera Tools
-            srta.caldera.tools.enable = true;
+          # Enable Caldera Tools
+          srta.caldera.tools.enable = true;
 
           users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
             profiles.debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
