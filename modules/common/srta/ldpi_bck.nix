@@ -17,7 +17,7 @@ in
       environment.systemPackages = with pkgs; [
           # Python 3
           libpcap
-          (python3.withPackages (ps:
+          (python311.withPackages (ps:
             with ps; [
               numpy
               pandas
@@ -30,10 +30,11 @@ in
               libpcap
               (import ./my_pypcap.nix {
                 inherit (pkgs) lib fetchFromGitHub libpcap;
-                inherit (pkgs.python3Packages) buildPythonPackage dpkt pytestCheckHook;
+                inherit (pkgs.python311Packages) buildPythonPackage dpkt pytestCheckHook;
               })
               torch
               netifaces
+              systemd
             ]))
 
           # Git
