@@ -6,48 +6,29 @@
   pkgs,
   ...
 }: let
-  srtaSrc = pkgs.fetchFromGitHub {
-    owner = "everton-dematos";
-    repo = "srta-ldpi";
-    rev = "master";  
-    sha256 = "4WYXKjmxAtaEg/4G6CB3lUnb6zI8OzuU79DoRp2V+WM=";  
-  };
-
-  srtaPythonEnv = pkgs.python3.withPackages (ps: [
-    ps.numpy
-    ps.pandas
-    ps.scipy
-    ps.scikit-learn
-    ps.torch
-    ps.matplotlib
-    ps.dpkt
-    ps.tqdm
-    ps.cycler
-    ps.netifaces
-    # Custom pypcap
-    (import ./my_pypcap.nix {
-      inherit (pkgs) lib fetchFromGitHub libpcap;
-      inherit (pkgs.python3Packages) buildPythonPackage dpkt pytestCheckHook;
-    })
-  ]);
-
+  ldpiPythonEnv = pkgs.callPackage ../../../packages/ldpi { };
 in
 {
   options.ghaf.srta.ldpi.tools = {
-    enable = lib.mkEnableOption "Secure Runtime Assurance LDPI";
+    enable = lib.mkEnableOption "Enable Secure Runtime Assurance LDPI";
   };
 
-  config = lib.mkIf config.ghaf.srta.ldpi.tools.enable {
-    environment.systemPackages = with pkgs; [
-      srtaPythonEnv
-      tcpdump
-      hey
-
-      # Adding the wrapper script to systemPackages
-      (pkgs.writeScriptBin "srta-ldpi" ''
-        #! ${pkgs.stdenv.shell}
-        ${srtaPythonEnv}/bin/python ${srtaSrc}/main.py
-      '')
+   config = lib.mkIf config.ghaf.srta.ldpi.tools.enable {
+    environment.systemPackages = [
+      ldpiPythonEnv  
     ];
+
+    # Configuring a systemd service for LDPI
+    systemd.services.ldpi = {
+      description = "Secure Runtime Assurance LDPI Service";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+
+      serviceConfig = {
+        ExecStart = "${ldpiPythonEnv}/bin/python main.py";
+        User = "root";
+        Restart = "always";
+      };
+    };
   };
 }

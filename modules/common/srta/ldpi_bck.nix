@@ -28,7 +28,7 @@ in
               matplotlib
               cycler
               libpcap
-              (import ./my_pypcap.nix {
+              (import ./custom_pypcap.nix {
                 inherit (pkgs) lib fetchFromGitHub libpcap;
                 inherit (pkgs.python311Packages) buildPythonPackage dpkt pytestCheckHook;
               })

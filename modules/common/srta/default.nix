@@ -5,8 +5,8 @@
 #
 {
   imports = [
-    ./ldpi_bck.nix
-    # ./ldpi.nix
+    #./ldpi_bck.nix
+    ./ldpi.nix
     ./caldera.nix
   ];
 }
