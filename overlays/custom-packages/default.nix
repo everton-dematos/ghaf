@@ -12,6 +12,7 @@
   waypipe = import ./waypipe { inherit final prev; };
   qemu_kvm = import ./qemu { inherit final prev; };
   nm-launcher = final.callPackage ../../packages/nm-launcher { };
+  bt-launcher = final.callPackage ../../packages/bt-launcher { };
   icon-pack = final.callPackage ../../packages/icon-pack { };
   labwc = import ./labwc { inherit prev; };
   tpm2-pkcs11 = import ./tpm2-pkcs11 { inherit prev; };
@@ -19,4 +20,5 @@
   mitmweb-ui = final.callPackage ../../packages/mitmweb-ui { };
   gtklock = import ./gtklock { inherit prev; };
   hardware-scan = final.callPackage ../../packages/hardware-scan { };
+  pulseaudio-ghaf = import ./pulseaudio { inherit prev; };
 })

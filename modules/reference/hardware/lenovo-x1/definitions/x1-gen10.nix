@@ -3,12 +3,11 @@
 #
 {
   # System name
-  name = "Lenovo X1 Carbon Gen 11";
+  name = "Lenovo X1 Carbon Gen 10";
 
   # List of system SKUs covered by this configuration
   skus = [
-    "LENOVO_MT_21HM_BU_Think_FM_ThinkPad X1 Carbon Gen 11 21HM006EGR"
-    # TODO Add more SKUs
+    # TODO Add SKUs
   ];
 
   host = {
@@ -30,9 +29,8 @@
     mouse = {
       name = [
         [
-          "ELAN067C:00 04F3:31F9 Mouse"
-          "SYNA8016:00 06CB:CEB3 Mouse"
           "ELAN067B:00 04F3:31F8 Mouse"
+          "SYNA8016:00 06CB:CEB3 Mouse"
         ]
         "TPPS/2 Elan TrackPoint"
       ];
@@ -45,9 +43,8 @@
     touchpad = {
       name = [
         [
-          "ELAN067C:00 04F3:31F9 Touchpad"
-          "SYNA8016:00 06CB:CEB3 Touchpad"
           "ELAN067B:00 04F3:31F8 Touchpad"
+          "SYNA8016:00 06CB:CEB3 Touchpad"
         ]
       ];
       evdev = [ "/dev/touchpad0" ];
@@ -68,7 +65,7 @@
       # Passthrough Intel WiFi card
       path = "0000:00:14.3";
       vendorId = "8086";
-      productId = "51f1";
+      productId = "51f0";
       name = "wlp0s5f0";
     }
   ];
@@ -79,7 +76,7 @@
         # Passthrough Intel Iris GPU
         path = "0000:00:02.0";
         vendorId = "8086";
-        productId = "a7a1";
+        productId = "46a6";
       }
     ];
     kernelConfig = {
@@ -88,22 +85,22 @@
     };
   };
 
-  # With the current implementation, the whole PCI IOMMU group 14:
-  #   00:1f.x in the example from Lenovo X1 Carbon
+  # With the current implementation, the whole PCI IOMMU group 13:
+  #   00:1f.x in the Lenovo X1 Carbon 10 gen
   #   must be defined for passthrough to AudioVM
   audio = {
     pciDevices = [
       {
-        # ISA bridge: Intel Corporation Raptor Lake LPC/eSPI Controller (rev 01)
+        # ISA bridge: Intel Corporation Alder Lake PCH eSPI Controller(rev 01)
         path = "0000:00:1f.0";
         vendorId = "8086";
-        productId = "519d";
+        productId = "5182";
       }
       {
-        # Audio device: Intel Corporation Raptor Lake-P/U/H cAVS (rev 01)
+        # Audio device: Intel Corporation Alder Lake PCH-P High Definition Audio Controller (rev 01)
         path = "0000:00:1f.3";
         vendorId = "8086";
-        productId = "51ca";
+        productId = "51c8";
       }
       {
         # SMBus: Intel Corporation Alder Lake PCH-P SMBus Host Controller (rev 01)
@@ -135,6 +132,11 @@
         name = "fpr0";
         hostbus = "3";
         hostport = "6";
+      }
+      {
+        name = "bt0";
+        hostbus = "3";
+        hostport = "10";
       }
     ];
     external = [

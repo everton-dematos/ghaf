@@ -10,5 +10,7 @@
     ./pdfopen.nix
     ./namespaces.nix
     ./yubikey.nix
+    ./bluetooth.nix
+    ./disks.nix
   ];
 }

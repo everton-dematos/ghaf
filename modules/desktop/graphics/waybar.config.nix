@@ -26,6 +26,7 @@ in
     ghaf.graphics.launchers = [
       {
         name = "Terminal";
+        description = "System Terminal";
         path = "${pkgs.foot}/bin/foot";
         icon = "${pkgs.icon-pack}/utilities-terminal.svg";
       }
@@ -89,7 +90,7 @@ in
             "interval": 15,
             "exec": "${wifi-signal-strength}/bin/wifi-signal-strength",
             "return-type": "json",
-            "on-click": "nm-launcher",
+            "on-click": "${pkgs.nm-launcher}/bin/nm-launcher",
           },
         ''
         + ''
@@ -134,19 +135,18 @@ in
           * {
               font-family: FontAwesome, Inter, sans-serif;
               font-size: 16px;
-              border: none;
-              border-radius: 5px;
+              border-style: none;
+              border-radius: 4px;
           }
 
           window#waybar {
-              background-color: rgba(32, 32, 32, 0.9);
+              background-color: rgba(18, 18, 18, 0.99);
               color: #ffffff;
               transition-property: background-color;
               transition-duration: .5s;
           }
 
           window#waybar.hidden {
-              opacity: 0.2;
           }
 
           window#waybar.termite {

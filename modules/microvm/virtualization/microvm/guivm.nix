@@ -39,8 +39,13 @@ let
               applications.enable = false;
               graphics.enable = true;
             };
+
             # To enable screen locking set to true
-            graphics.labwc.autolock.enable = false;
+            graphics.labwc = {
+              autolock.enable = lib.mkDefault config.ghaf.graphics.labwc.autolock.enable;
+              autologinUser = lib.mkDefault config.ghaf.graphics.labwc.autologinUser;
+            };
+
             development = {
               ssh.daemon.enable = lib.mkDefault config.ghaf.development.ssh.daemon.enable;
               debug.tools.enable = lib.mkDefault config.ghaf.development.debug.tools.enable;
@@ -71,7 +76,14 @@ let
                   mode = "u=rwx,g=,o=";
                 }
               ];
+              users.${config.ghaf.users.accounts.user}.directories = [
+                ".config/"
+                "Pictures"
+                "Videos"
+              ];
             };
+            services.disks.enable = true;
+            services.disks.fileManager = "${pkgs.pcmanfm}/bin/pcmanfm";
           };
 
           systemd.services."waypipe-ssh-keygen" =
@@ -103,14 +115,27 @@ let
               (rmDesktopEntries [
                 pkgs.waypipe
                 pkgs.networkmanagerapplet
+                pkgs.gnome-calculator
+                pkgs.sticky-notes
               ])
               ++ [
                 pkgs.nm-launcher
+                pkgs.bt-launcher
                 pkgs.pamixer
+                pkgs.eww
               ]
               ++ (lib.optional (
                 config.ghaf.profiles.debug.enable && config.ghaf.virtualization.microvm.idsvm.mitmproxy.enable
-              ) pkgs.mitmweb-ui);
+              ) pkgs.mitmweb-ui)
+              # Packages for checking hardware acceleration
+              ++ lib.optionals config.ghaf.profiles.debug.enable [
+                pkgs.glxinfo
+                pkgs.libva-utils
+              ];
+            sessionVariables = {
+              XDG_PICTURES_DIR = "$HOME/Pictures";
+              XDG_VIDEOS_DIR = "$HOME/Videos";
+            };
           };
 
           time.timeZone = config.time.timeZone;
@@ -190,6 +215,7 @@ let
   buildKernel = import ../../../../packages/kernel { inherit config pkgs lib; };
   config_baseline = ../../../hardware/x86_64-generic/kernel/configs/ghaf_host_hardened_baseline-x86;
   guest_graphics_hardened_kernel = buildKernel { inherit config_baseline; };
+
 in
 {
   options.ghaf.virtualization.microvm.guivm = {
@@ -230,9 +256,20 @@ in
     microvm.vms."${vmName}" = {
       autostart = true;
       config = guivmBaseConfiguration // {
-        boot.kernelPackages = lib.mkIf config.ghaf.guest.kernel.hardening.graphics.enable (
-          pkgs.linuxPackagesFor guest_graphics_hardened_kernel
-        );
+        boot.kernelPackages =
+          if config.ghaf.guest.kernel.hardening.graphics.enable then
+            pkgs.linuxPackagesFor guest_graphics_hardened_kernel
+          else
+            pkgs.linuxPackages_latest;
+
+        # We need this patch to avoid reserving Intel graphics stolen memory for vm
+        # https://gitlab.freedesktop.org/drm/i915/kernel/-/issues/12103
+        boot.kernelPatches = [
+          {
+            name = "gpu-passthrough-fix";
+            patch = ./0001-x86-gpu-Don-t-reserve-stolen-memory-for-GPU-passthro.patch;
+          }
+        ];
 
         imports = guivmBaseConfiguration.imports ++ cfg.extraModules;
       };

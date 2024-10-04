@@ -10,21 +10,22 @@ let
   cfg = config.ghaf.graphics.labwc;
 
   audio-ctrl = pkgs.callPackage ../../../packages/audio-ctrl { };
+  ghaf-screenshot = pkgs.callPackage ../../../packages/ghaf-screenshot { };
   gtklockStyle = pkgs.writeText "gtklock.css" ''
     window {
-      background: rgba(29, 29, 29, 1);
-      color: #eee;
+      background: rgba(18, 18, 18, 1);
+      color: #fff;
     }
     button {
       box-shadow: none;
       border-radius: 5px;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      background: rgba(255, 255, 255, 0.06);
+      border: none;
+      background: #171717;
     }
     entry {
-      background-color: rgba (43, 43, 43, 1);
+      background-color: #232323;
       border: 1px solid rgba(46, 46, 46, 1);
-      color: #eee;
+      color: #fff;
     }
     entry:focus {
       box-shadow: none;
@@ -40,6 +41,7 @@ let
     runtimeInputs = [
       pkgs.systemd
       pkgs.dbus
+      pkgs.brightnessctl
     ];
 
     text =
@@ -52,6 +54,8 @@ let
         systemctl --user reset-failed
         systemctl --user stop ghaf-session.target
         systemctl --user start ghaf-session.target
+        # By default set system brightness to 100% which can be configured later
+        brightnessctl set 100%
       ''
       + cfg.extraAutostart;
   };
@@ -88,7 +92,7 @@ let
       </keybind>
       ${lib.optionalString config.ghaf.profiles.debug.enable ''
         <keybind key="Print">
-          <action name="Execute" command="${pkgs.grim}/bin/grim" />
+          <action name="Execute" command="${ghaf-screenshot}/bin/ghaf-screenshot" />
         </keybind>
       ''}
       <keybind key="XF86_MonBrightnessUp">
@@ -175,7 +179,7 @@ let
 
   makoConfig = ''
     font=Inter 12
-    background-color=#202020e6
+    background-color=#121212
     progress-color=source #3D8252e6
     border-radius=5
     border-size=0
@@ -184,7 +188,8 @@ let
   '';
 
   environment = ''
-    XCURSOR_THEME=breeze_cursors
+    XCURSOR_THEME=Adwaita
+    XCURSOR_SIZE=24
 
     # Wayland compatibility
     MOZ_ENABLE_WAYLAND=1
@@ -283,11 +288,13 @@ in
     ghaf.graphics.launchers = [
       {
         name = "Lock";
+        description = "Lock Session";
         path = "${lockCmd}";
         icon = "${pkgs.icon-pack}/system-lock-screen.svg";
       }
       {
         name = "Log Out";
+        description = "Quit Applications & Log Out";
         path = "${pkgs.labwc}/bin/labwc --exit";
         icon = "${pkgs.icon-pack}/system-log-out.svg";
       }

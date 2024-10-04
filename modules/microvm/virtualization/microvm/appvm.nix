@@ -33,7 +33,14 @@ let
             internalIP = index + 100;
           })
 
+          ./common/ghaf-audio.nix
           ./common/storagevm.nix
+          (
+            with configHost.ghaf.virtualization.microvm-host;
+            lib.optionalAttrs (sharedVmDirectory.enable && builtins.elem vmName sharedVmDirectory.vms) (
+              import ./common/shared-directory.nix vmName
+            )
+          )
 
           # To push logs to central location
           ../../../common/logging/client.nix
@@ -72,6 +79,25 @@ let
                   withDebug = configHost.ghaf.profiles.debug.enable;
                   withHardenedConfigs = true;
                 };
+
+                ghaf-audio = {
+                  inherit (vm.ghafAudio) enable;
+                  name = "${vm.name}";
+                };
+
+                storagevm = {
+                  enable = true;
+                  name = "${vm.name}";
+                  users.${config.ghaf.users.accounts.user}.directories = [
+                    ".config/"
+                    "Downloads"
+                    "Music"
+                    "Pictures"
+                    "Documents"
+                    "Videos"
+                  ];
+                };
+
                 # Logging client configuration
                 logging.client.enable = configHost.ghaf.logging.client.enable;
                 logging.client.endpoint = configHost.ghaf.logging.client.endpoint;
@@ -239,6 +265,7 @@ in
               type = types.nullOr types.str;
               default = null;
             };
+            ghafAudio.enable = lib.mkEnableOption "Ghaf application audio support";
             vtpm.enable = lib.mkEnableOption "vTPM support in the virtual machine";
           };
         }

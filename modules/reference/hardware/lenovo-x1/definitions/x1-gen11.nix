@@ -3,18 +3,20 @@
 #
 {
   # System name
-  name = "Lenovo X1 Carbon Gen 10";
+  name = "Lenovo X1 Carbon Gen 11";
 
   # List of system SKUs covered by this configuration
   skus = [
-    # TODO Add SKUs
+    "LENOVO_MT_21HM_BU_Think_FM_ThinkPad X1 Carbon Gen 11 21HM006EGR"
+    "LENOVO_MT_21HM_BU_Think_FM_ThinkPad X1 Carbon Gen 11 21HM0072MX"
+    # TODO Add more SKUs
   ];
 
   host = {
     kernelConfig.kernelParams = [
       "intel_iommu=on,sm_on"
       "iommu=pt"
-      "module_blacklist=i915" # Prevent i915 module from being accidentally used by host
+      "module_blacklist=i915,xe" # Prevent i915,xe modules from being accidentally used by host
       "acpi_backlight=vendor"
       "acpi_osi=linux"
     ];
@@ -29,8 +31,9 @@
     mouse = {
       name = [
         [
-          "ELAN067B:00 04F3:31F8 Mouse"
+          "ELAN067C:00 04F3:31F9 Mouse"
           "SYNA8016:00 06CB:CEB3 Mouse"
+          "ELAN067B:00 04F3:31F8 Mouse"
         ]
         "TPPS/2 Elan TrackPoint"
       ];
@@ -43,8 +46,9 @@
     touchpad = {
       name = [
         [
-          "ELAN067B:00 04F3:31F8 Touchpad"
+          "ELAN067C:00 04F3:31F9 Touchpad"
           "SYNA8016:00 06CB:CEB3 Touchpad"
+          "ELAN067B:00 04F3:31F8 Touchpad"
         ]
       ];
       evdev = [ "/dev/touchpad0" ];
@@ -65,7 +69,7 @@
       # Passthrough Intel WiFi card
       path = "0000:00:14.3";
       vendorId = "8086";
-      productId = "51f0";
+      productId = "51f1";
       name = "wlp0s5f0";
     }
   ];
@@ -76,31 +80,34 @@
         # Passthrough Intel Iris GPU
         path = "0000:00:02.0";
         vendorId = "8086";
-        productId = "46a6";
+        productId = "a7a1";
       }
     ];
     kernelConfig = {
       stage1.kernelModules = [ "i915" ];
-      kernelParams = [ "earlykms" ];
+      kernelParams = [
+        "earlykms"
+        "i915.enable_dpcd_backlight=3"
+      ];
     };
   };
 
-  # With the current implementation, the whole PCI IOMMU group 13:
-  #   00:1f.x in the Lenovo X1 Carbon 10 gen
+  # With the current implementation, the whole PCI IOMMU group 14:
+  #   00:1f.x in the example from Lenovo X1 Carbon
   #   must be defined for passthrough to AudioVM
   audio = {
     pciDevices = [
       {
-        # ISA bridge: Intel Corporation Alder Lake PCH eSPI Controller(rev 01)
+        # ISA bridge: Intel Corporation Raptor Lake LPC/eSPI Controller (rev 01)
         path = "0000:00:1f.0";
         vendorId = "8086";
-        productId = "5182";
+        productId = "519d";
       }
       {
-        # Audio device: Intel Corporation Alder Lake PCH-P High Definition Audio Controller (rev 01)
+        # Audio device: Intel Corporation Raptor Lake-P/U/H cAVS (rev 01)
         path = "0000:00:1f.3";
         vendorId = "8086";
-        productId = "51c8";
+        productId = "51ca";
       }
       {
         # SMBus: Intel Corporation Alder Lake PCH-P SMBus Host Controller (rev 01)
@@ -132,6 +139,11 @@
         name = "fpr0";
         hostbus = "3";
         hostport = "6";
+      }
+      {
+        name = "bt0";
+        hostbus = "3";
+        hostport = "10";
       }
     ];
     external = [

@@ -8,7 +8,6 @@
   ...
 }:
 let
-  inherit (lib) hasAttr optionals;
   xdgPdfPort = 1200;
   name = "chromium";
 in
@@ -25,50 +24,33 @@ in
         mimeTypes = [ "application/pdf" ];
       };
       xdgOpenPdf = pkgs.writeShellScriptBin "xdgopenpdf" ''
-        filepath=$(realpath "$1")
+        filepath=$(/run/current-system/sw/bin/realpath "$1")
         echo "Opening $filepath" | systemd-cat -p info
         echo $filepath | ${pkgs.netcat}/bin/nc -N gui-vm ${toString xdgPdfPort}
       '';
     in
     [
       pkgs.chromium
-      pkgs.pulseaudio
       pkgs.xdg-utils
       xdgPdfItem
       xdgOpenPdf
-    ];
+    ]
+    ++ lib.optional config.ghaf.development.debug.tools.enable pkgs.alsa-utils;
   # TODO create a repository of mac addresses to avoid conflicts
   macAddress = "02:00:00:03:05:01";
-  ramMb = 3072;
+  ramMb = 6144;
   cores = 4;
   extraModules = [
     {
       imports = [ ../programs/chromium.nix ];
-      # Enable pulseaudio for Chromium VM
-      security.rtkit.enable = true;
-      users.extraUsers.ghaf.extraGroups = [
-        "audio"
-        "video"
-      ];
-
-      hardware.pulseaudio = {
-        enable = true;
-        extraConfig = ''
-          load-module module-tunnel-sink sink_name=chromium-speaker server=audio-vm:4713 format=s16le channels=2 rate=48000
-          load-module module-tunnel-source source_name=chromium-mic server=audio-vm:4713 format=s16le channels=1 rate=48000
-
-          # Set sink and source default max volume to about 90% (0-65536)
-          set-sink-volume chromium-speaker 60000
-          set-source-volume chromium-mic 60000
-        '';
-      };
 
       time.timeZone = config.time.timeZone;
 
-      microvm.qemu.extraArgs = optionals (
-        config.ghaf.hardware.usb.internal.enable
-        && (hasAttr "cam0" config.ghaf.hardware.usb.internal.qemuExtraArgs)
-      ) config.ghaf.hardware.usb.internal.qemuExtraArgs.cam0;
+      # Disable camera for now, because, due to the bug, the camera is not accessable in BusinessVM
+      # microvm.qemu.extraArgs = optionals (
+      #   config.ghaf.hardware.usb.internal.enable
+      #   && (hasAttr "cam0" config.ghaf.hardware.usb.internal.qemuExtraArgs)
+      # ) config.ghaf.hardware.usb.internal.qemuExtraArgs.cam0;
       microvm.devices = [ ];
 
       ghaf.givc.appvm = {
@@ -81,16 +63,12 @@ in
       };
 
       ghaf.reference.programs.chromium.enable = true;
-      ghaf.storagevm = {
-        enable = true;
-        name = "${name}";
-        users.${config.ghaf.users.accounts.user}.directories = [ ".config" ];
-      };
 
       # Set default PDF XDG handler
       xdg.mime.defaultApplications."application/pdf" = "ghaf-pdf.desktop";
     }
   ];
   borderColor = "#630505";
+  ghafAudio.enable = true;
   vtpm.enable = true;
 }

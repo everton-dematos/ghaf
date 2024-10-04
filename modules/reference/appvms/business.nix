@@ -25,47 +25,28 @@ in
         mimeTypes = [ "application/pdf" ];
       };
       xdgOpenPdf = pkgs.writeShellScriptBin "xdgopenpdf" ''
-        filepath=$(realpath "$1")
+        filepath=$(/run/current-system/sw/bin/realpath "$1")
         echo "Opening $filepath" | systemd-cat -p info
         echo $filepath | ${pkgs.netcat}/bin/nc -N gui-vm ${toString xdgPdfPort}
       '';
     in
     [
       pkgs.chromium
-      pkgs.pulseaudio
       pkgs.xdg-utils
       xdgPdfItem
       xdgOpenPdf
       pkgs.globalprotect-openconnect
       pkgs.openconnect
       pkgs.nftables
+      pkgs.gnome-text-editor
     ];
   # TODO create a repository of mac addresses to avoid conflicts
   macAddress = "02:00:00:03:10:01";
-  ramMb = 3072;
+  ramMb = 6144;
   cores = 4;
   extraModules = [
     {
       imports = [ ../programs/chromium.nix ];
-      # Enable pulseaudio for Chromium VM
-      security.rtkit.enable = true;
-      users.extraUsers.ghaf.extraGroups = [
-        "audio"
-        "video"
-      ];
-
-      hardware.pulseaudio = {
-        enable = true;
-        extraConfig = ''
-          load-module module-tunnel-sink sink_name=chromium-speaker server=audio-vm:4713 format=s16le channels=2 rate=48000
-          load-module module-tunnel-source source_name=chromium-mic server=audio-vm:4713 format=s16le channels=1 rate=48000
-
-          # Set sink and source default max volume to about 90% (0-65536)
-          set-sink-volume chromium-speaker 60000
-          set-source-volume chromium-mic 60000
-        '';
-      };
-
       time.timeZone = config.time.timeZone;
 
       microvm = {
@@ -81,20 +62,16 @@ in
         name = lib.mkForce "business-vm";
         applications = lib.mkForce ''
           {
-            "chromium":     "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland ${config.ghaf.givc.idsExtraArgs}",
-            "outlook":      "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://outlook.office.com/mail/ ${config.ghaf.givc.idsExtraArgs}",
-            "office":       "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://microsoft365.com ${config.ghaf.givc.idsExtraArgs}",
-            "teams":        "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://teams.microsoft.com ${config.ghaf.givc.idsExtraArgs}",
-            "gpclient":     "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/gpclient -platform wayland"
+            "chromium":              "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland ${config.ghaf.givc.idsExtraArgs}",
+            "outlook":               "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://outlook.office.com/mail/ ${config.ghaf.givc.idsExtraArgs}",
+            "office":                "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://microsoft365.com ${config.ghaf.givc.idsExtraArgs}",
+            "teams":                 "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/chromium --enable-features=UseOzonePlatform --ozone-platform=wayland --app=https://teams.microsoft.com ${config.ghaf.givc.idsExtraArgs}",
+            "gpclient":              "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/gpclient -platform wayland",
+            "gnome-text-editor":     "${config.ghaf.givc.appPrefix}/run-waypipe ${config.ghaf.givc.appPrefix}/gnome-text-editor"
           }'';
       };
 
       ghaf.reference.programs.chromium.enable = true;
-      ghaf.storagevm = {
-        enable = true;
-        name = "${name}";
-        users.${config.ghaf.users.accounts.user}.directories = [ ".config" ];
-      };
 
       # Set default PDF XDG handler
       xdg.mime.defaultApplications."application/pdf" = "ghaf-pdf.desktop";
@@ -105,6 +82,10 @@ in
         enable = true;
         csdWrapper = "${pkgs.openconnect}/libexec/openconnect/hipreport.sh";
       };
+
+      # Enable dconf and icon pack for gnome text editor
+      programs.dconf.enable = true;
+      environment.systemPackages = [ pkgs.gnome.adwaita-icon-theme ];
 
       #Firewall Settings
       networking = {
@@ -292,5 +273,6 @@ in
     }
   ];
   borderColor = "#00FF00";
+  ghafAudio.enable = true;
   vtpm.enable = true;
 }

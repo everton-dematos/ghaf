@@ -10,6 +10,8 @@
 }:
 let
   icons = [
+    "bluetooth-48.svg"
+    "preferences-sound.svg"
     "chromium.svg"
     "distributor-logo-android.svg"
     "distributor-logo-windows.svg"
@@ -18,6 +20,7 @@ let
     "firefox.svg"
     "microsoft-365.svg"
     "ms-outlook.svg"
+    "org.gnome.TextEditor.svg"
     "preferences-system-network.svg"
     "slack.svg"
     "system-lock-screen.svg"
@@ -30,6 +33,7 @@ let
     "thorium-browser.svg"
     "utilities-terminal.svg"
     "yast-vpn.svg"
+    "system-file-manager.svg"
   ];
 in
 runCommand "icon-pack"

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 { inputs, ... }:
 {
+
   flake.nixosModules = {
     laptop.imports = [
       ./definition.nix

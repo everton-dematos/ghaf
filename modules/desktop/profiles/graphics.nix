@@ -38,7 +38,7 @@ in
     };
     renderer = lib.mkOption {
       type = lib.types.enum renderers;
-      default = "pixman";
+      default = "gles2";
       description = ''
         Which wlroots renderer to use.
 
@@ -49,7 +49,7 @@ in
 
   options.ghaf.graphics = {
     launchers = mkOption {
-      description = "Labwc application launchers to show in launch bar";
+      description = "Application launchers to show in the system drawer or launcher.";
       default = [ ];
       type = types.listOf (
         types.submodule {
@@ -57,6 +57,16 @@ in
             name = mkOption {
               description = "Name of the application";
               type = types.str;
+            };
+            description = mkOption {
+              description = "Description of the application";
+              type = types.str;
+              default = "Secured Ghaf Application";
+            };
+            vm = mkOption {
+              description = "VM name in case this launches an isolated application.";
+              type = types.nullOr types.str;
+              default = null;
             };
             path = mkOption {
               description = "Path to the executable to be launched";
@@ -74,12 +84,15 @@ in
   };
 
   config = mkIf cfg.enable {
-    hardware.graphics.enable = true;
+    hardware.graphics = {
+      enable = true;
+      extraPackages = mkIf pkgs.stdenv.hostPlatform.isx86 [ pkgs.intel-media-driver ];
+    };
     environment.noXlibs = false;
     environment.sessionVariables = {
       WLR_RENDERER = cfg.renderer;
       XDG_SESSION_TYPE = "wayland";
-      WLR_NO_HARDWARE_CURSORS = 1;
+      WLR_NO_HARDWARE_CURSORS = if (cfg.renderer == "pixman") then 1 else 0;
       XKB_DEFAULT_LAYOUT = "us,ara,fi";
       XKB_DEFAULT_OPTIONS = "grp:alt_shift_toggle";
       # Set by default in labwc, but possibly not in other compositors
