@@ -3,7 +3,7 @@
 { lib, config, ... }:
 let
   cfg = config.ghaf.storagevm;
-  mountPath = "/tmp/storagevm";
+  mountPath = "/guestStorage";
 in
 {
   options.ghaf.storagevm = with lib; {
@@ -23,11 +23,10 @@ in
       type = types.anything;
       default = [ ];
       example = [
-        "Downloads"
-        "Music"
-        "Pictures"
-        "Documents"
-        "Videos"
+        "/var/lib/nixos"
+        "/var/log"
+        "/var/lib/bluetooth"
+        "/var/lib/systemd/coredump"
       ];
       description = ''
         Directories to bind mount to persistent storage.
@@ -62,7 +61,15 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    fileSystems.${mountPath}.neededForBoot = true;
+    fileSystems.${mountPath} = {
+      neededForBoot = true;
+      options = lib.mkForce [
+        "rw"
+        "nodev"
+        "nosuid"
+        "noexec"
+      ];
+    };
 
     microvm.shares = [
       {
@@ -77,6 +84,10 @@ in
     environment.persistence.${mountPath} = lib.mkMerge [
       {
         hideMounts = true;
+        directories = [
+          "/var/lib/nixos"
+        ];
+
         files = [
           "/etc/ssh/ssh_host_ed25519_key.pub"
           "/etc/ssh/ssh_host_ed25519_key"

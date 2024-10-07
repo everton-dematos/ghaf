@@ -35,11 +35,12 @@
   disko = {
     # 8GB is the recommeneded minimum for ZFS, so we are using this for VMs to avoid `cp` oom errors.
     memSize = 16384;
-    extraPostVM = ''
-      ${pkgs.zstd}/bin/zstd --compress $out/*raw
-      rm $out/*raw
-    '';
-    extraRootModules = [ "zfs" ];
+    imageBuilder = {
+      extraPostVM = ''
+        ${pkgs.zstd}/bin/zstd --compress $out/*raw
+        rm $out/*raw
+      '';
+    };
     devices = {
       disk.disk1 = {
         type = "disk";
@@ -96,7 +97,13 @@
           rootFsOptions = {
             mountpoint = "none";
             acltype = "posixacl";
+            xattr = "sa";
           };
+          # `ashift=12` optimizes alignment for 4K sector size.
+          # Since this is an generic image and people might upgrade from one nvme device to another,
+          # we should make sure it runs well on these devices, also in theory 512B would work with less.
+          # This trades off some space overhead for overall better performance on 4k devices.
+          options.ashift = "12";
           datasets = {
             "root_a" = {
               type = "zfs_fs";
@@ -158,6 +165,8 @@
               type = "zfs_fs";
               options = {
                 mountpoint = "/storagevm";
+                acltype = "posixacl";
+                xattr = "sa";
               };
             };
           };

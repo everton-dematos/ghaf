@@ -18,11 +18,13 @@ let
     {
       pname = "stage1-systemd";
       inherit (cfgBase) withAudit;
+      inherit (cfgBase) withBootloader;
       inherit (cfgBase) withCryptsetup;
       inherit (cfgBase) withEfi;
       inherit (cfgBase) withFido2;
       inherit (cfgBase) withRepart;
       inherit (cfgBase) withTpm2Tss;
+      inherit (cfgBase) withUkify;
     }
     // lib.optionalAttrs (lib.strings.versionAtLeast pkgs.systemdMinimal.version "255.0") {
       withQrencode = true; # Required for systemd-bsod, which is currently hardcoded in nixos
@@ -64,7 +66,7 @@ in
         inherit package;
         inherit suppressedUnits;
         emergencyAccess = config.ghaf.profiles.debug.enable;
-        enableTpm2 = cfgBase.withTpm2Tss;
+        tpm2.enable = cfgBase.withTpm2Tss;
         initrdBin = optionals config.ghaf.profiles.debug.enable [
           pkgs.lvm2
           pkgs.util-linux

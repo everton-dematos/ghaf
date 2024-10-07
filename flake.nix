@@ -29,8 +29,8 @@
 
   inputs = {
     #TODO: clean this up before merging to main
-    nixpkgs.url = "github:tiiuae/nixpkgs/nixos-unstable-texinfo"; # "flake:mylocalnixpkgs"; #
-    #nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    #nixpkgs.url = "github:tiiuae/nixpkgs/nixos-unstable-texinfo"; # "flake:mylocalnixpkgs"; #
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     ghafpkgs = {
       url = "github:tiiuae/ghafpkgs";
@@ -38,7 +38,7 @@
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
         treefmt-nix.follows = "treefmt-nix";
-        pre-commit-hooks-nix.follows = "pre-commit-hooks-nix";
+        pre-commit-hooks-nix.follows = "git-hooks-nix";
         flake-compat.follows = "flake-compat";
       };
     };
@@ -61,8 +61,8 @@
     };
 
     # To ensure that checks are run locally to enforce cleanliness
-    pre-commit-hooks-nix = {
-      url = "github:cachix/pre-commit-hooks.nix";
+    git-hooks-nix = {
+      url = "github:cachix/git-hooks.nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         nixpkgs-stable.follows = "nixpkgs";
@@ -117,8 +117,9 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     jetpack-nixos = {
+      #url = "github:anduril/jetpack-nixos
       url = "github:anduril/jetpack-nixos/793716c1ca29a1be6d9bea84296a933c4acdddc1";
-      inputs.nixpkgs.follows = "nixpkgs";
+      #inputs.nixpkgs.follows = "nixpkgs";
     };
 
     disko = {
@@ -135,7 +136,7 @@
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
         flake-parts.follows = "flake-parts";
-        pre-commit-hooks-nix.follows = "pre-commit-hooks-nix";
+        pre-commit-hooks-nix.follows = "git-hooks-nix";
         flake-compat.follows = "flake-compat";
       };
     };
@@ -145,14 +146,14 @@
     };
 
     givc = {
-      url = "github:tiiuae/ghaf-givc";
+      url = "github:tiiuae/ghaf-givc/68079deac890d19d84389becc37805310fc0107f";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
         flake-root.follows = "flake-root";
         treefmt-nix.follows = "treefmt-nix";
         devshell.follows = "devshell";
-        pre-commit-hooks-nix.follows = "pre-commit-hooks-nix";
+        pre-commit-hooks-nix.follows = "git-hooks-nix";
       };
     };
   };

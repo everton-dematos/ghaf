@@ -1,6 +1,11 @@
 # Copyright 2022-2024 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.ghaf.hardware.x86_64.common;
 in
@@ -14,7 +19,12 @@ in
 
     # Increase the support for different devices by allowing the use
     # of proprietary drivers from the respective vendors
-    nixpkgs.config.allowUnfree = true;
+    nixpkgs.config = {
+      allowUnfree = true;
+      permittedInsecurePackages = [
+        "jitsi-meet-1.0.8043"
+      ];
+    };
 
     # Add this for x86_64 hosts to be able to more generically support hardware.
     # For example Intel NUC 11's graphics card needs this in order to be able to
@@ -35,10 +45,10 @@ in
         efi.canTouchEfiVariables = true;
         systemd-boot.enable = true;
       };
-      # ZFS-compatible kernel is used for every applicable target since for certain
-      # targets ZFS support is required, and having the same kernel version for
-      # different targets simplifies and hardens the resulting configuration.
-      kernelPackages = config.boot.zfs.package.latestCompatibleLinuxPackages;
+
+      # TODO the kernel latest is currently broken for zfs.
+      # try to fix on the next update.
+      kernelPackages = pkgs.linuxPackages;
     };
   };
 }

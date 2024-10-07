@@ -69,7 +69,7 @@ in
               path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} start --vm business-vm chromium";
               icon = "${pkgs.icon-pack}/thorium-browser.svg";
             }
-            # TODO must enable the waypipe to support more than one app in a VM
+
             {
               name = "VPN";
               description = "GlobalProtect VPN Client";
@@ -185,6 +185,14 @@ in
               name = "Audio Control";
               path = "${pkgs.ghaf-audio-control}/bin/GhafAudioControlStandalone --pulseaudio_server=audio-vm:4713";
               icon = "${pkgs.icon-pack}/preferences-sound.svg";
+            }
+
+            {
+              name = "Video Editor";
+              description = "Losslesscut Video Editor";
+              vm = "Business";
+              path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} start --vm business-vm losslesscut";
+              icon = "${pkgs.losslesscut-bin}/share/icons/losslesscut.png";
             }
 
             {
