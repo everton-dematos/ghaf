@@ -10,7 +10,7 @@ let
     owner = "everton-dematos";
     repo = "srta-ldpi";
     rev = "logging_wip";
-    sha256 = "sha256-f4bW07WA/nbcWhPZPN/Wf+DVu19KdScxm4nEWE6gOIM="; 
+    sha256 = "sha256-q9yyoxeKWGpQA6JO9sSbD1EpRRaNVSVZPPVBCLq7o9Y="; 
   };
 in
 
