@@ -26,6 +26,8 @@ in
       ldpiPythonEnv  
     ];
 
+    # ghaf.systemd.logLevel = "warning";
+
     # Configuring a systemd service for LDPI
     systemd.services.ldpi = {
       description = "Secure Runtime Assurance LDPI Service";
@@ -36,6 +38,9 @@ in
       serviceConfig = {
         Type = "simple";
         User = "root";
+
+        # StandardOutput = "journal";
+        # StandardError = "journal";
 
         Environment = [
           "PYTHONPATH=${ldpiPythonEnv}/lib/python3.11/site-packages:${pythonPath}"
