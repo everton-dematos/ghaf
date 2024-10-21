@@ -11,29 +11,8 @@ let
 
   audio-ctrl = pkgs.callPackage ../../../packages/audio-ctrl { };
   ghaf-screenshot = pkgs.callPackage ../../../packages/ghaf-screenshot { };
-  gtklockStyle = pkgs.writeText "gtklock.css" ''
-    window {
-      background: rgba(18, 18, 18, 1);
-      color: #fff;
-    }
-    button {
-      box-shadow: none;
-      border-radius: 5px;
-      border: none;
-      background: #171717;
-    }
-    entry {
-      background-color: #232323;
-      border: 1px solid rgba(46, 46, 46, 1);
-      color: #fff;
-    }
-    entry:focus {
-      box-shadow: none;
-      border: 1px solid rgba(223, 92, 55, 1);
-    }
-  '';
+  gtklockStyle = pkgs.callPackage ./styles/gtk-lock.nix { };
   lockCmd = "${pkgs.gtklock}/bin/gtklock -s ${gtklockStyle}";
-
   ghaf-launcher = pkgs.callPackage ./ghaf-launcher.nix { inherit config pkgs; };
   autostart = pkgs.writeShellApplication {
     name = "labwc-autostart";
@@ -41,7 +20,6 @@ let
     runtimeInputs = [
       pkgs.systemd
       pkgs.dbus
-      pkgs.brightnessctl
     ];
 
     text =
@@ -54,8 +32,6 @@ let
         systemctl --user reset-failed
         systemctl --user stop ghaf-session.target
         systemctl --user start ghaf-session.target
-        # By default set system brightness to 100% which can be configured later
-        brightnessctl set 100%
       ''
       + cfg.extraAutostart;
   };
@@ -85,6 +61,10 @@ let
         <delay inner="500" outer="500"/>
       </overlay>
     </snapping>
+    <placement>
+      <policy>cascade</policy>
+      <cascadeOffset x="40" y="30" />
+    </placement>
     <keyboard>
       <default />
       <keybind key="W-l">
@@ -147,6 +127,12 @@ let
     <libinput>
       <device category="touchpad"><naturalScroll>yes</naturalScroll></device>
     </libinput>
+    <windowSwitcher show="yes" preview="yes" outlines="yes" allWorkspaces="yes">
+      <fields>
+        <field content="title"  width="75%" />
+        <field content="output"  width="25%" />
+      </fields>
+    </windowSwitcher>
     </labwc_config>
   '';
 
@@ -286,20 +272,5 @@ in
         wantedBy = [ "ghaf-session.target" ];
       };
     };
-
-    ghaf.graphics.launchers = [
-      {
-        name = "Lock";
-        description = "Lock Session";
-        path = "${lockCmd}";
-        icon = "${pkgs.icon-pack}/system-lock-screen.svg";
-      }
-      {
-        name = "Log Out";
-        description = "Quit Applications & Log Out";
-        path = "${pkgs.labwc}/bin/labwc --exit";
-        icon = "${pkgs.icon-pack}/system-log-out.svg";
-      }
-    ];
   };
 }

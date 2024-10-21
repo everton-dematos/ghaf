@@ -12,20 +12,19 @@ writeShellApplication {
 
     case "$1" in
       inc)
-        # Increase volume by 5%
-        pamixer -i 5
+        # Unmute and Increase volume by 5%
+        pamixer --unmute --increase 5
         ;;
       dec)
-        # Decrease volume by 5%
-        pamixer -d 5
+        # Unmute and Decrease volume by 5%
+        pamixer --unmute --decrease 5
         ;;
       mut)
         # Toggle mute
-        if [ "$(pamixer --get-mute)" = "false" ]; then
-          pamixer -m
-        else
-          pamixer -u
-        fi
+        pamixer --toggle-mute
+        ;;
+      get_mut)
+        pamixer --get-mute
         ;;
       get)
         # Get current volume level
@@ -34,7 +33,8 @@ writeShellApplication {
       set)
         # Set volume to a specific level
         if [ -n "$2" ]; then
-          pamixer --set-volume "$2"
+          # Unmute and set volume
+          pamixer --unmute --set-volume "$2"
         fi
         ;;
       *)

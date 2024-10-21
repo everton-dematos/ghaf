@@ -100,11 +100,18 @@ in
               icon = "${pkgs.icon-pack}/teams-for-linux.svg";
             }
             {
-              name = "Gnome Text Editor";
-              description = "Text Editor and Note-Taking Application";
+              name = "Text Editor";
+              description = "Simple Text Editor";
               vm = "Business";
               path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} start --vm business-vm gnome-text-editor";
               icon = "${pkgs.icon-pack}/org.gnome.TextEditor.svg";
+            }
+            {
+              name = "Xarchiver";
+              description = "File Compressor";
+              vm = "Business";
+              path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} start --vm business-vm xarchiver";
+              icon = "${pkgs.icon-pack}/xarchiver.svg";
             }
 
             {
@@ -140,49 +147,36 @@ in
             }
 
             {
-              name = "AppFlowy";
-              description = "Productivity & Note-Taking Application";
-              vm = "AppFlowy";
-              path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} start appflowy";
-              icon = "${pkgs.appflowy}/opt/data/flutter_assets/assets/images/flowy_logo.svg";
-            }
-
-            {
               name = "Calculator";
-              description = "Application that solves mathematical equations";
+              description = "Solve Math Problems";
               path = "${pkgs.gnome-calculator}/bin/gnome-calculator";
               icon = "${pkgs.gnome-calculator}/share/icons/hicolor/scalable/apps/org.gnome.Calculator.svg";
             }
 
             {
-              name = "Sticky-Notes";
-              description = "Note-Taking Application for quick TODO items";
+              name = "Sticky Notes";
+              description = "Sticky Notes on your Desktop";
               path = "${pkgs.sticky-notes}/bin/com.vixalien.sticky";
               icon = "${pkgs.sticky-notes}/share/icons/hicolor/scalable/apps/com.vixalien.sticky.svg";
             }
 
             {
               name = "File Manager";
-              description = "File manager application";
+              description = "Organize & Manage Files";
               path = "${pkgs.pcmanfm}/bin/pcmanfm";
               icon = "${pkgs.icon-pack}/system-file-manager.svg";
             }
 
             {
-              name = "Network Settings";
-              description = "Manage Network & Wi-Fi Settings";
-              path = "${pkgs.nm-launcher}/bin/nm-launcher";
-              icon = "${pkgs.icon-pack}/preferences-system-network.svg";
-            }
-
-            {
               name = "Bluetooth Settings";
+              description = "Manage Bluetooth Devices & Settings";
               path = "${pkgs.bt-launcher}/bin/bt-launcher";
               icon = "${pkgs.icon-pack}/bluetooth-48.svg";
             }
 
             {
               name = "Audio Control";
+              description = "System Audio Control";
               path = "${pkgs.ghaf-audio-control}/bin/GhafAudioControlStandalone --pulseaudio_server=audio-vm:4713";
               icon = "${pkgs.icon-pack}/preferences-sound.svg";
             }
@@ -196,17 +190,16 @@ in
             }
 
             {
-              name = "Shutdown";
-              description = "Shutdown System";
-              path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} poweroff";
-              icon = "${pkgs.icon-pack}/system-shutdown.svg";
+              name = "Falcon AI";
+              description = "Your local large language model, developed by TII.";
+              path = "${pkgs.alpaca}/bin/alpaca";
+              icon = "${pkgs.ghaf-artwork}/icons/falcon-icon.svg";
             }
 
             {
-              name = "Reboot";
-              description = "Reboot System";
-              path = "${pkgs.givc-cli}/bin/givc-cli ${cliArgs} reboot";
-              icon = "${pkgs.icon-pack}/system-reboot.svg";
+              name = "Control panel";
+              path = "${pkgs.ctrl-panel}/bin/ctrl-panel";
+              icon = "${pkgs.icon-pack}/utilities-tweak-tool.svg";
             }
           ]
           ++ optionals config.ghaf.reference.programs.windows-launcher.enable [

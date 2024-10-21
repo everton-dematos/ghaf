@@ -18,7 +18,16 @@ in
 
   config = lib.mkIf cfg.enable {
     ghaf = {
-      graphics.labwc.autolock.enable = false;
+      # Enable below option for session lock feature
+      graphics = {
+        #might be too optimistic to hide the boot logs
+        #just yet :)
+        # boot.enable = lib.mkForce true;
+        labwc = {
+          autolock.enable = lib.mkForce true;
+          autologinUser = lib.mkForce null;
+        };
+      };
 
       reference = {
         appvms = {
@@ -27,7 +36,6 @@ in
           gala-vm = true;
           zathura-vm = true;
           comms-vm = true;
-          appflowy-vm = true;
           business-vm = true;
         };
 

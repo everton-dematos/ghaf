@@ -32,6 +32,7 @@ let
         internalIP = 5;
       })
       ./common/storagevm.nix
+      ../../../common/logging/client.nix
       (
         { lib, pkgs, ... }:
         {
@@ -58,6 +59,9 @@ let
             };
             givc.audiovm.enable = true;
             services.audio.enable = true;
+            # Logging client configuration
+            logging.client.enable = configHost.ghaf.logging.client.enable;
+            logging.client.endpoint = configHost.ghaf.logging.client.endpoint;
             storagevm = {
               enable = true;
               name = "audiovm";
@@ -85,8 +89,8 @@ let
           microvm = {
             # Optimize is disabled because when it is enabled, qemu is built without libusb
             optimize.enable = false;
-            vcpu = 1;
-            mem = 256;
+            vcpu = 2;
+            mem = 384;
             hypervisor = "qemu";
             shares =
               [

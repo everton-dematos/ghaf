@@ -12,21 +12,15 @@ let
 
   cfg = config.ghaf.graphics.labwc;
   audio-ctrl = pkgs.callPackage ../../../packages/audio-ctrl { };
+  gtklockStyle = pkgs.callPackage ./styles/gtk-lock.nix { };
 
   launcher-icon = "${pkgs.ghaf-artwork}/icons/launcher.svg";
-  security-icon = "${pkgs.ghaf-artwork}/icons/security-green.svg";
 
   battery-0-icon = "${pkgs.ghaf-artwork}/icons/battery-0.svg";
   battery-1-icon = "${pkgs.ghaf-artwork}/icons/battery-1.svg";
   battery-2-icon = "${pkgs.ghaf-artwork}/icons/battery-2.svg";
   battery-3-icon = "${pkgs.ghaf-artwork}/icons/battery-3.svg";
   battery-charging-icon = "${pkgs.ghaf-artwork}/icons/battery-charging.svg";
-
-  wifi-0-icon = "${pkgs.ghaf-artwork}/icons/wifi-0.svg";
-  wifi-1-icon = "${pkgs.ghaf-artwork}/icons/wifi-1.svg";
-  wifi-2-icon = "${pkgs.ghaf-artwork}/icons/wifi-2.svg";
-  wifi-3-icon = "${pkgs.ghaf-artwork}/icons/wifi-3.svg";
-  wifi-4-icon = "${pkgs.ghaf-artwork}/icons/wifi-4.svg";
 
   volume-0-icon = "${pkgs.ghaf-artwork}/icons/volume-0.svg";
   volume-1-icon = "${pkgs.ghaf-artwork}/icons/volume-1.svg";
@@ -48,21 +42,13 @@ let
   restart-icon = "${pkgs.ghaf-artwork}/icons/restart.svg";
   suspend-icon = "${pkgs.ghaf-artwork}/icons/suspend.svg";
 
+  settings-icon = "${pkgs.ghaf-artwork}/icons/admin-cog.svg";
+
+  lock-icon = "${pkgs.ghaf-artwork}/icons/lock.svg";
+
+  logout-icon = "${pkgs.ghaf-artwork}/icons/logout.svg";
+
   arrow-right-icon = "${pkgs.ghaf-artwork}/icons/arrow-right.svg";
-
-  # Colors
-  ## Background
-  bg-secondary = "#2B2B2B";
-  ## Text
-  text-base = "#FFFFFF";
-  text-success = "#5AC379";
-  ## Icons
-  icon-subdued = "#3D3D3D";
-  ## Stroke
-  stroke-success = "#5AC379";
-
-  # Typography
-  font-bold = "600";
 
   # Called by eww.yuck for updates and reloads
   eww = "${pkgs.eww}/bin/eww -c /etc/eww";
@@ -82,19 +68,22 @@ let
     runtimeInputs = [ ];
     bashOptions = [ ];
     text = ''
-      widgets=("calendar" "quick-settings" "power-menu")
-      widgets_to_close=()
+      windows=("calendar" "quick-settings" "power-menu")
 
       close-others(){
-          for widget in "''${widgets[@]}"; do
-              if [ "$widget" != "$1" ]; then
-                  widgets_to_close+=("$widget")
+          active_windows=$(${eww} active-windows)
+          close=()
+
+          for window in "''${windows[@]}"; do
+              window_open=$(echo "$active_windows" | grep "$window")
+              if [ "$window" != "$1" ] && [ -n "$window_open" ]; then
+                  close+=("$window")
               fi
           done
-          ${eww} close "''${widgets_to_close[@]}" >/dev/null 2>&1
+          ${eww} close "''${close[@]}"
       }
 
-      open-widget(){
+      open-window(){
           close-others "$1"
           if [ -z "$2" ]; then
               ${eww} open --toggle "$1"
@@ -103,60 +92,7 @@ let
           fi
       }
 
-      if [ "$1" = "calendar" ]; then
-          ${eww} update calendar_day="$(date +%d)" calendar_month="$(date +%-m)" calendar_year="$(date +%Y)"
-      fi
-      open-widget "$1" "$2"
-    '';
-  };
-
-  eww-wifi = pkgs.writeShellApplication {
-    name = "eww-wifi";
-    runtimeInputs = [
-      pkgs.jq
-      pkgs.grpcurl
-    ];
-    bashOptions = [ ];
-    text = ''
-      grpcurl_cmd_get_active_connection="grpcurl -plaintext 192.168.100.1:9000 wifimanager.WifiService.GetActiveConnection"
-
-      signal() {
-          signal_level=$(echo "$1" | jq '.Signal // empty')
-          echo "$signal_level"
-      }
-
-      icon() {
-          if [ "$1" -lt 30 ]; then
-              echo "${wifi-1-icon}"
-          elif [ "$1" -lt 60 ]; then
-              echo "${wifi-2-icon}"
-          elif [ "$1" -lt 80 ]; then
-              echo "${wifi-3-icon}"
-          else
-              echo "${wifi-4-icon}"
-          fi
-      }
-
-      get() {
-          active_connection=$($grpcurl_cmd_get_active_connection)
-
-          signal=$(signal "$active_connection")
-          icon=$(icon "$signal")
-          connected=$(echo "$active_connection" | jq -r '.Connection // false')
-          ssid=$(echo "$active_connection" | jq -r '.SSID // empty')
-
-          if [ "$connected" = "false" ] || [ -z "$ssid" ]; then
-              icon="${wifi-0-icon}"
-          fi
-          echo "{
-              \"connected\": \"$connected\",
-              \"ssid\": \"$ssid\",
-              \"signal\": \"$signal\",
-              \"icon\": \"$icon\"
-          }"
-      }
-
-      [ "$1" = "get" ] && get && exit
+      open-window "$1" "$2"
     '';
   };
 
@@ -168,63 +104,143 @@ let
     ];
     bashOptions = [ ];
     text = ''
-      BATTERY_PATH="/sys/class/power_supply/BAT0"
-      ENERGY_NOW=$(cat "$BATTERY_PATH/energy_now")
-      POWER_NOW=$(cat "$BATTERY_PATH/power_now")
-      CAPACITY=$(cat "$BATTERY_PATH/capacity")
-      STATUS=$(cat "$BATTERY_PATH/status")
+      icon() {
+        if [ "$1" -lt 10 ]; then
+            echo "${battery-0-icon}"
+        elif [ "$1" -lt 30 ]; then
+            echo "${battery-1-icon}"
+        elif [ "$1" -lt 70 ]; then
+            echo "${battery-2-icon}"
+        else
+            echo "${battery-3-icon}"
+        fi
+      }
 
       get() {
-          if [ "$POWER_NOW" -eq 0 ]; then
-          echo "{
-              \"remaining\": { \"hours\": \"0\", \"minutes_total\": \"0\", \"minutes\": \"0\" },
-              \"status\": \"$STATUS\",
-              \"capacity\": \"$CAPACITY\"
-          }"
-              exit
-          fi
+        BATTERY_PATH="/sys/class/power_supply/BAT0"
+        ENERGY_NOW=$(cat "$BATTERY_PATH/energy_now")
+        POWER_NOW=$(cat "$BATTERY_PATH/power_now")
+        CAPACITY=$(cat "$BATTERY_PATH/capacity")
+        STATUS=$(cat "$BATTERY_PATH/status")
+        ICON=$(icon "$CAPACITY")
+        if [ "$STATUS" = "Charging" ]; then
+            ICON="${battery-charging-icon}"
+        fi
+        if [ "$POWER_NOW" -eq 0 ]; then
+            echo "{
+                \"hours\": \"0\",
+                \"minutes_total\": \"0\",
+                \"minutes\": \"0\",
+                \"status\": \"$STATUS\",
+                \"capacity\": \"$CAPACITY\",
+                \"icon\": \"$ICON\"
+            }"
+            exit
+        fi
 
-          TIME_REMAINING=$(echo "scale=2; $ENERGY_NOW / $POWER_NOW" | bc)
+        TIME_REMAINING=$(echo "scale=2; $ENERGY_NOW / $POWER_NOW" | bc)
+        HOURS=$(echo "$TIME_REMAINING" | awk '{print int($1)}')
+        MINUTES_TOTAL=$(echo "$HOURS * 60" | bc | awk '{printf "%d\n", $1}')
+        MINUTES_REMAINDER=$(echo "($TIME_REMAINING - $HOURS) * 60" | bc | awk '{printf "%d\n", $1}')
 
-          HOURS=$(echo "$TIME_REMAINING" | awk '{print int($1)}')
-          MINUTES_TOTAL=$(echo "$HOURS * 60" | bc | awk '{printf "%d\n", $1}')
-          MINUTES_REMAINDER=$(echo "($TIME_REMAINING - $HOURS) * 60" | bc | awk '{printf "%d\n", $1}')
+        # If both hours and minutes are 0, return 0 for both
+        if [ "$HOURS" -eq 0 ] && [ "$MINUTES" -eq 0 ]; then
+            HOURS=0
+            MINUTES=0
+        fi
 
-          # If both hours and minutes are 0, return 0 for both
-          if [ "$HOURS" -eq 0 ] && [ "$MINUTES" -eq 0 ]; then
-              HOURS=0
-              MINUTES=0
-          fi
-
-          echo "{
-              \"remaining\": { \"hours\": \"$HOURS\", \"minutes_total\": \"$MINUTES_TOTAL\", \"minutes\": \"$MINUTES_REMAINDER\" },
-              \"status\": \"$STATUS\",
-              \"capacity\": \"$CAPACITY\"
-          }"
+        echo "{
+            \"hours\": \"$HOURS\",
+            \"minutes_total\": \"$MINUTES_TOTAL\",
+            \"minutes\": \"$MINUTES_REMAINDER\",
+            \"status\": \"$STATUS\",
+            \"capacity\": \"$CAPACITY\",
+            \"icon\": \"$ICON\"
+        }"
       }
 
       [ "$1" = "get" ] && get && exit
     '';
   };
 
-  eww-start = pkgs.writeShellApplication {
-    name = "eww-start";
+  ewwbar-ctrl = pkgs.writeShellApplication {
+    name = "ewwbar-ctrl";
     runtimeInputs = [
       pkgs.wlr-randr
       pkgs.jq
+      pkgs.bash
+      pkgs.gawk
+      pkgs.xorg.setxkbmap
     ];
     bashOptions = [ ];
     text = ''
-      # Get number of connected displays using wlr-randr
-      connected_monitors=$(wlr-randr --json | jq 'length')
-      echo Found connected displays: "$connected_monitors"
-      # Launch Eww bar on each screen
-      ${eww} kill
-      ${eww} daemon
-      for ((screen=0; screen<connected_monitors; screen++)); do
-          echo Starting ewwbar for display $screen
-          ${eww} open --no-daemonize --screen "$screen" bar --id bar:$screen --arg screen="$screen"
-      done
+      start() {
+        # Get the number of connected displays using wlr-randr and parse the output with jq
+        displays=$(wlr-randr --json | jq 'length')
+        
+        # Check if there are any connected displays
+        if [ "$displays" -eq 0 ]; then
+            echo "No connected displays found."
+            exit 1
+        fi
+
+        echo "Found connected displays: $displays"
+
+        # Start eww daemon
+        ${eww} kill
+        ${eww} daemon
+        sleep 0.2
+        update-vars
+        sleep 0.2
+
+        # Launch ewwbar for each connected display
+        for ((display=0; display<displays; display++)); do
+            echo Starting ewwbar for display $display
+            ${eww} open --no-daemonize --screen "$display" bar --id bar:$display --arg screen="$display"
+        done
+
+        # Open a widget for hotkey indicators only on main display
+        ${eww} open --no-daemonize hotkey-indicator
+      }
+
+      # Reloads current config without opening new windows
+      reload() {
+        ${eww} reload
+        update-vars
+      }
+
+      update-vars() {
+        volume=$(${eww-volume}/bin/eww-volume get)
+        brightness=$(${eww-brightness}/bin/eww-brightness get)
+        battery=$(${eww-bat}/bin/eww-bat get)
+        keyboard_layout=$(setxkbmap -query | awk '/layout/{print $2}' | tr '[:lower:]' '[:upper:]')
+        
+        ${eww} update \
+          volume="$volume" \
+          brightness="$brightness" \
+          battery="$battery" \
+          keyboard_layout="$keyboard_layout"
+      }
+
+      kill() {
+        ${eww} kill
+      }
+
+      case "$1" in
+        start)
+            start
+            ;;
+        reload)
+            reload
+            ;;
+        kill)
+            kill
+            ;;
+        *)
+            echo "Usage: $0 {start|reload|kill}"
+            exit 1
+            ;;
+      esac
     '';
   };
 
@@ -233,9 +249,23 @@ let
     runtimeInputs = [
       pkgs.gawk
       pkgs.brightnessctl
+      pkgs.inotify-tools
     ];
     bashOptions = [ ];
     text = ''
+      timer_pid=0
+
+      handle_hotkey_indicator() {
+          if [ "$timer_pid" -ne 0 ]; then
+              kill "$timer_pid" 2>/dev/null
+          fi
+          if ! ${eww} active-windows | grep -q "quick-settings"; then
+              ${eww} update hotkey-source="brightness" hotkey-brightness-visible="true"
+          fi
+          ( sleep 2; ${eww} update hotkey-brightness-visible="false") &
+          timer_pid=$!
+      }
+
       screen_level() {
           brightnessctl info | grep -oP '(?<=\().+?(?=%)' | awk '{print $1 + 0.0}'
       }
@@ -264,20 +294,27 @@ let
 
       set_screen() {
           brightnessctl set "$1""%" -q
-          ${eww} update brightness="$(get)"
       }
 
       get() {
           brightness=$(screen_level)
           icon=$(icon "$brightness")
-          echo "{
-              \"screen\": { \"level\": \"$brightness\" },
-              \"icon\": \"$icon\"
-          }"
+          echo "{ \"screen\": { \"level\": \"$brightness\" }, \"icon\": \"$icon\" }"
+      }
+
+      listen() {
+        inotifywait -m /sys/class/backlight/*/brightness | \
+        while read -r line; do
+            if echo "$line" | grep -q "CLOSE_WRITE"; then
+                handle_hotkey_indicator
+                get
+            fi
+        done
       }
 
       if [[ "$1" == 'get' ]]; then get; fi
       if [[ "$1" == 'set_screen' ]]; then set_screen "$2"; fi
+      if [[ "$1" == 'listen' ]]; then listen; fi
     '';
   };
 
@@ -285,16 +322,35 @@ let
     name = "eww-volume";
     runtimeInputs = [
       pkgs.gawk
+      pkgs.pulseaudio
       audio-ctrl
     ];
     bashOptions = [ ];
     text = ''
+        timer_pid=0
+
+        handle_hotkey_indicator() {
+            if [ "$timer_pid" -ne 0 ]; then
+                kill "$timer_pid" 2>/dev/null
+            fi
+
+            if ! ${eww} active-windows | grep -q "quick-settings"; then
+                ${eww} update hotkey-source="volume" hotkey-volume-visible="true"
+            fi
+            ( sleep 2; ${eww} update hotkey-volume-visible="false") &
+            timer_pid=$!
+        }
+
       volume_level() {
           audio-ctrl get | awk '{print $1 + 0.0}'
       }
 
+      is_muted() {
+          audio-ctrl get_mut
+      }
+
       icon() {
-          if [ "$1" -eq 0 ]; then
+          if [[ "$2" == "true" || "$1" -eq 0 ]]; then
               echo "${volume-0-icon}"
           elif [ "$1" -lt 25 ]; then
               echo "${volume-1-icon}"
@@ -307,20 +363,46 @@ let
 
       set_volume() {
           audio-ctrl set "$1"
-          ${eww} update volume="$(get)"
+      }
+
+      mute() {
+          audio-ctrl mut
       }
 
       get() {
           volume=$(volume_level)
-          icon=$(icon "$volume")
-          echo "{
-              \"level\": \"$volume\",
-              \"icon\": \"$icon\"
-          }"
+          muted=$(is_muted)
+          icon=$(icon "$volume" "$muted")
+          echo "{ \"level\": \"$volume\", \"muted\": \"$muted\", \"icon\": \"$icon\" }"
+      }
+
+      listen() {
+        # Initialize variables to store previous volume and mute state
+        prev_volume=""
+        prev_mute_status=""
+
+        pactl -s audio-vm:4713 subscribe | while read -r event; do
+            if echo "$event" | grep -q "sink"; then
+                current_volume=$(volume_level)
+                current_mute_status=$(is_muted)
+
+                # Check if volume or mute status changed
+                if [[ "$current_volume" != "$prev_volume" || "$current_mute_status" != "$prev_mute_status" ]]; then
+                    handle_hotkey_indicator
+                    get
+
+                    # Update previous states
+                    prev_volume="$current_volume"
+                    prev_mute_status="$current_mute_status"
+                fi
+            fi
+        done
       }
 
       if [[ "$1" == 'get' ]]; then get; fi
       if [[ "$1" == 'set_volume' ]]; then set_volume "$2"; fi
+      if [[ "$1" == 'listen' ]]; then listen; fi
+      if [[ "$1" == 'mute' ]]; then mute; fi
     '';
   };
 
@@ -329,14 +411,11 @@ let
     runtimeInputs = [ pkgs.givc-cli ];
     bashOptions = [ ];
     text = ''
-      # Check if an argument is provided
       if [ $# -ne 1 ]; then
       echo "Usage: $0 {reboot|poweroff|suspend}"
       fi
 
-      # Validate the argument
       case "$1" in (reboot|poweroff|suspend)
-          # Call the givc-cli command with the provided argument
           givc-cli ${cliArgs} "$1"
           ;;
       *)
@@ -356,19 +435,18 @@ in
         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         ;;							   Variables        					     ;;	
         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-        (defpoll keyboard_layout :interval "1s" "${pkgs.xorg.setxkbmap}/bin/setxkbmap -query | ${pkgs.gawk}/bin/awk '/layout/{print $2}' | tr a-z A-Z")
-        (defpoll time :interval "1s" "date +'%I:%M%p'")
-        (defpoll date :interval "1m" "date +'%a %d/%m' | tr a-z A-Z")
-        (defpoll calendar_day :interval "10h"
-            "date '+%d'")
-        (defpoll calendar_month :interval "10h"
-            "date '+%-m'")
-        (defpoll calendar_year :interval "10h"
-            "date '+%Y'")
-        (defpoll wifi  :interval "5s" :initial "{}" "${eww-wifi}/bin/eww-wifi get")
-        (defpoll battery  :interval "2s" :initial "{}" "${eww-bat}/bin/eww-bat get")
-        (defpoll brightness  :interval "1s" :initial "{}" "${eww-brightness}/bin/eww-brightness get")
-        (defpoll volume  :interval "1s" :initial "{}" "${eww-volume}/bin/eww-volume get")
+        (defpoll keyboard_layout :interval "5s" "${pkgs.xorg.setxkbmap}/bin/setxkbmap -query | ${pkgs.gawk}/bin/awk '/layout/{print $2}' | tr a-z A-Z")
+        (defpoll battery  :interval "5s" :initial "{}" "${eww-bat}/bin/eww-bat get")
+        (deflisten brightness "${eww-brightness}/bin/eww-brightness listen")
+        (deflisten volume "${eww-volume}/bin/eww-volume listen")
+
+        (defvar calendar_day "date '+%d'")
+        (defvar calendar_month "date '+%-m'")
+        (defvar calendar_year "date '+%Y'")
+
+        (defvar hotkey-brightness-visible "false")
+        (defvar hotkey-volume-visible "false")
+        (defvar hotkey-source "volume")
         ;; (defpoll bluetooth  :interval "3s" :initial "{}" "${pkgs.bt-launcher}/bin/bt-launcher status")
 
         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -381,112 +459,108 @@ in
                 (image :path "${launcher-icon}")))
 
         ;; Generic slider widget ;;
-        (defwidget sys_slider [?header icon ?settings-icon level onchange ?onclick ?class ?font-icon ?min] 
-        (box :orientation "v"
-            :class "qs-slider"
-            :spacing 10
-            :space-evenly false
-            (label :class "header" 
-                :visible { header != "" && header != "null" ? "true" : "false" } 
-                :text header
-                :hexpand true
-                :halign "start")
-            (box :orientation "h"
-                :space-evenly false
-                (box :class "icon"
-                    :visible {font-icon == "" ? "true" : "false"}
-                    :hexpand false
-                    :style "background-image: url(\"''${icon}\")")
-                (label :class "icon" :visible {font-icon != "" ? "true" : "false"} :text font-icon)
-                (eventbox
-                    :valign "CENTER"
-                    :class "slider"
-                    :hexpand true
-                    (scale
-                        :hexpand true
-                        :orientation "h"
-                        :halign "fill"
-                        :value level
-                        :onchange onchange
-                        :max 101 
-                        :min { min ?: 0 }))
-                (eventbox 
-                    :visible { onclick != "" && onclick != "null" ? "true" : "false" }
-                    :onclick onclick
-                    :class "settings"
-                    (box :class "icon"
-                        :hexpand false
-                        :style "background-image: url(\"''${settings-icon}\")")))
-        ))
-        (defwidget sys_sliders []
-        (box
-            :orientation "v"
-            :spacing 10
-            :hexpand false
-            (sys_slider
-                    :header "Volume"
-                    :icon {volume.icon}
-                    :settings-icon "${arrow-right-icon}"
-                    :level {volume.level}
-                    :onchange "${eww-volume}/bin/eww-volume set_volume {} &")
-            (sys_slider
-                    :header "Display"
-                    :level {brightness.screen.level}
-                    :icon {brightness.icon}
-                    :min "5"
-                    :onchange "${eww-brightness}/bin/eww-brightness set_screen {} &")
-        ))
-        (defwidget widget_button [icon ?title header ?subtitle ?onclick ?font-icon] 
-        (eventbox :class "qs-info-button" :onclick onclick
-        (box :orientation "v"
-            :class "qs-info-button-padding"
-            :spacing 10
-            :space-evenly false
-            (label :class "title" 
-                :visible { title != "" && title != "null" ? "true" : "false" } 
-                :text title
-                :hexpand true
-                :vexpand false
-                :halign "start")
-            (box :orientation "h"
+        (defwidget sys_slider [?header icon ?settings-icon level ?onchange ?settings-onclick ?icon-onclick ?class ?font-icon ?min] 
+            (box :orientation "v"
+                :class "qs-slider"
                 :spacing 10
-                :valign "center"
-                :vexpand "false"
                 :space-evenly false
-                (box :class "icon"
-                    :visible {font-icon == "" ? "true" : "false"}
-                    :valign "center"
+                (label :class "header" 
+                    :visible { header != "" && header != "null" ? "true" : "false" } 
+                    :text header
                     :halign "start"
-                    :hexpand false
-                    :style "background-image: url(\"''${icon}\")")
-                (label :class "icon" :visible {font-icon != "" ? "true" : "false"} :text font-icon)
-                (box :class "text"
-                    :valign "center"
-                    :orientation "v" 
-                    :spacing 3
-                    :halign "start"
-                    :hexpand true
-                    (label :halign "start" :class "header" :text header)
-                    (label :visible {subtitle != "" ? "true" : "false"} :halign "start" :class "subtitle" :text subtitle :limit-width 13))
-        ))))
-        (defwidget widget_button_small [icon ?onclick ?header] 
-        (eventbox :class "qs-info-button-small"
-            :onclick onclick
-            (box :orientation "h"
+                    :hexpand true)
+                (box :orientation "h" 
+                    :valign "end"
+                    :space-evenly false
+                    (eventbox 
+                        :active { icon-onclick != "" && icon-onclick != "null" ? "true" : "false" }
+                        :visible {font-icon == "" ? "true" : "false"}
+                        :onclick icon-onclick
+                        :hexpand false
+                        :class "icon_settings"
+                        (box :class "icon"
+                            :hexpand false
+                            :style "background-image: url(\"''${icon}\")"))
+                    (label :class "icon" :visible {font-icon != "" ? "true" : "false"} :text font-icon)
+                    (eventbox
+                        :valign "CENTER"
+                        :class "slider"
+                        :hexpand true
+                        (scale
+                            :hexpand true
+                            :orientation "h"
+                            :halign "fill"
+                            :value level
+                            :onchange onchange
+                            :max 101 
+                            :min { min ?: 0 }))
+                    (eventbox 
+                        :visible { settings-onclick != "" && settings-onclick != "null" ? "true" : "false" }
+                        :onclick settings-onclick
+                        :class "settings"
+                        (box :class "icon"
+                            :hexpand false
+                            :style "background-image: url(\"''${settings-icon}\")")))))
+
+        (defwidget sys_sliders []
+            (box
+                :orientation "v"
+                :spacing 10
+                :hexpand false
                 :space-evenly false
-                (box :class "icon"
-                    :valign "center"
-                    :halign "start"
-                    :hexpand false
-                    :style "background-image: url(\"''${icon}\")")
-                (box :class "text"
-                    :valign "center"
-                    :orientation "v" 
-                    :spacing 3
-                    :halign "start"
-                    :hexpand true
-                    (label :halign "start" :class "header" :text header :visible {header != "" ? "true" : "false"}))
-        )))
+                (sys_slider
+                        :header "Volume"
+                        :icon {volume.icon}
+                        :icon-onclick "${eww-volume}/bin/eww-volume mute &"
+                        :settings-icon "${arrow-right-icon}"
+                        :level { volume.muted == "true" ? "0" : volume.level }
+                        :onchange "${eww-volume}/bin/eww-volume set_volume {} &")
+                (sys_slider
+                        :header "Display"
+                        :level {brightness.screen.level}
+                        :icon {brightness.icon}
+                        :min "5"
+                        :onchange "${eww-brightness}/bin/eww-brightness set_screen {} &")))
+
+        ;; Generic Widget Buttons For Quick Settings ;;
+        (defwidget widget_button [icon ?title ?header ?subtitle ?onclick ?font-icon ?class] 
+            (eventbox :class { class == "" ? "widget-button" : "''${class}" }
+                :onclick onclick
+                (box :orientation "v"
+                    :class "inner-box"
+                    :spacing 6
+                    :space-evenly false
+                    (label :class "header" 
+                        :visible { header != "" && header != "null" ? "true" : "false" } 
+                        :text header
+                        :hexpand true
+                        :vexpand true
+                        :halign "start"
+                        :valign "fill")
+                    (box :orientation "h"
+                        :spacing 10
+                        :valign "fill"
+                        :halign "start"
+                        :hexpand true
+                        :vexpand true
+                        :space-evenly false
+                        (box :class "icon"
+                            :visible {font-icon == "" ? "true" : "false"}
+                            :valign "center"
+                            :halign "start"
+                            :hexpand false
+                            :style "background-image: url(\"''${icon}\")")
+                        (label :class "icon" :visible {font-icon != "" ? "true" : "false"} :text font-icon)
+                        (box :class "text"
+                            :valign "center"
+                            :orientation "v" 
+                            :spacing 3
+                            :halign "start"
+                            :hexpand true
+                            (label :halign "start" :class "title" :text title)
+                            (label :visible {subtitle != "" ? "true" : "false"} :halign "start" :class "subtitle" :text subtitle :limit-width 13))))))
+
+        ;; Power Menu Buttons ;;
         (defwidget power_menu []
         (box
             :orientation "v"
@@ -496,153 +570,119 @@ in
             :spacing 10
             :space-evenly "false"
             (widget_button
+                    :class "power-menu-button"
                     :icon "${power-icon}"
-                    :header "Shutdown"
-                    :onclick "${eww-popup}/bin/eww-popup power-menu; ${eww-power}/bin/eww-power poweroff")
+                    :title "Shutdown"
+                    :onclick "${eww-popup}/bin/eww-popup power-menu & ${eww-power}/bin/eww-power poweroff &")
             (widget_button
+                    :class "power-menu-button"
                     :icon "${suspend-icon}"
-                    :header "Suspend"
-                    :onclick "${eww-popup}/bin/eww-popup power-menu; ${eww-power}/bin/eww-power suspend")
+                    :title "Suspend"
+                    :onclick "${eww-popup}/bin/eww-popup power-menu & ${eww-power}/bin/eww-power suspend &")
             (widget_button
+                    :class "power-menu-button"
                     :icon "${restart-icon}"
-                    :header "Reboot"
-                    :onclick "${eww-popup}/bin/eww-popup power-menu; ${eww-power}/bin/eww-power reboot")
-        ))
+                    :title "Reboot"
+                    :onclick "${eww-popup}/bin/eww-popup power-menu & ${eww-power}/bin/eww-power reboot &")
+            (widget_button
+                    :class "power-menu-button"
+                    :icon "${logout-icon}"
+                    :title "Log Out"
+                    :onclick "${eww-popup}/bin/eww-popup power-menu & ${pkgs.labwc}/bin/labwc --exit &")
+            (widget_button
+                    :class "power-menu-button"
+                    :icon "${lock-icon}"
+                    :title "Lock"
+                    :onclick "${eww-popup}/bin/eww-popup power-menu & ${pkgs.gtklock}/bin/gtklock -s ${gtklockStyle} &")))
+
+        ;; Quick Settings Buttons ;;
         (defwidget settings_buttons []
-        (box
-            :orientation "v"
-            :spacing 10
             (box
-                :orientation "h"
+                :orientation "v"
+                :spacing 10
+                (box
+                    :orientation "h"
+                    (widget_button
+                        :icon "${bluetooth-1-icon}"
+                        :header "Bluetooth"
+                        :onclick "${eww-popup}/bin/eww-popup quick-settings & ${pkgs.bt-launcher}/bin/bt-launcher &")
+                    (box
+                        :hexpand true
+                        :vexpand true
+                        :class "spacer"))))
+
+        ;; Battery Widget In Quick Settings ;;
+        (defwidget etc []
+            (box :orientation "h"
                 :space-evenly true
                 :spacing 10
                 (widget_button
-                    :icon {wifi.icon}
-                    :header "WiFi"
-                    :subtitle {wifi.ssid ?: "Not connected"}
-                    :onclick "${eww-popup}/bin/eww-popup quick-settings; ${pkgs.nm-launcher}/bin/nm-launcher &")
+                    :visible { EWW_BATTERY != "" ? "true" : "false" }
+                    :header "Battery"
+                    :title {EWW_BATTERY != "" ? "''${battery.capacity}%" : "100%"}
+                    :subtitle { battery.status == 'Charging' ? "Charging" : 
+                                battery.hours != "0" && battery.minutes != "0" ? "''${battery.hours}h ''${battery.minutes}m" : 
+                                battery.hours == "0" && battery.minutes != "0" ? "''${battery.minutes}m" :
+                                battery.hours != "0" && battery.minutes == "0" ? "''${battery.hours}h" : 
+                                "" }
+                    :icon {battery.icon})
                 (widget_button
-                    :icon "${bluetooth-1-icon}"
-                    :header "Bluetooth"
-                    :onclick "${eww-popup}/bin/eww-popup quick-settings; ${pkgs.bt-launcher}/bin/bt-launcher &"))
-        ))
-        (defwidget etc []
-        (box :orientation "h"
-            :space-evenly true
-            :spacing 10
-            (widget_button
-                :visible { EWW_BATTERY != "" ? "true" : "false" }
-                :hexpand true
-                :vexpand true
-                :subtitle { battery.status == 'Charging' ? "Charging" : 
-                            battery.remaining.hours != "0" && battery.remaining.minutes != "0" ? "''${battery.remaining.hours}h ''${battery.remaining.minutes}m" : 
-                            battery.remaining.hours == "0" && battery.remaining.minutes != "0" ? "''${battery.remaining.minutes}m" :
-                            battery.remaining.hours != "0" && battery.remaining.minutes == "0" ? "''${battery.remaining.hours}h" : 
-                            "" }
-                :header {EWW_BATTERY != "" ? "''${EWW_BATTERY.BAT0.capacity}%" : "100%"}
-                :icon {EWW_BATTERY.BAT0.status == 'Charging' ? "${battery-charging-icon}" :
-                        EWW_BATTERY.BAT0.capacity < 10 ? "${battery-0-icon}" :
-                            EWW_BATTERY.BAT0.capacity <= 30 ? "${battery-1-icon}" :
-                                EWW_BATTERY.BAT0.capacity <= 70 ? "${battery-2-icon}" : "${battery-3-icon}"})
-            (box
-                :hexpand true
-                :vexpand true
-                :class "spacer"
-            )
-        ))
+                    :icon "${settings-icon}"
+                    :header "Settings"
+                    :onclick "${eww-popup}/bin/eww-popup quick-settings & ${pkgs.ctrl-panel}/bin/ctrl-panel >/dev/null &")))
+
+        ;; Quick Settings Widget ;;
         (defwidget quick-settings-widget []
-        (box :class "quick-settings"  
-            :orientation "v"
-            :space-evenly false
-            (box 
-                :class "wrapper_widget"
-                :space-evenly false
-                :spacing 10
+            (box :class "floating-widget"  
                 :orientation "v"
-                (etc)
-                (sys_sliders)
-                (settings_buttons))))
+                :space-evenly false
+                (box 
+                    :class "wrapper_widget"
+                    :space-evenly false
+                    :spacing 10
+                    :orientation "v"
+                    (etc)
+                    (sys_sliders)
+                    (settings_buttons))))
 
+        ;; Power Menu Widget ;;
         (defwidget power-menu-widget []
-        (box :class "quick-settings"  
-            :orientation "v"
-            :space-evenly false
-            (box 
-                :class "wrapper_widget"
-                :space-evenly false
+            (box :class "floating-widget"  
                 :orientation "v"
-                (power_menu))))
-
-        (defwidget hotkey_indicator [icon level] 
-        (box :class "widget"
-            :orientation "h"
-            (box :class "icon"
-                :style "background-image: url(\"''${icon}\")")
-            (box
                 :space-evenly false
-                :class "percent"
-                (label
-                    :visible { level != "" && level != "null" ? "true" : "false" }
-                    :hexpand true
-                    :halign "END"
-                    :text "''${level}%"))))
+                (box 
+                    :class "wrapper_widget"
+                    :space-evenly false
+                    :orientation "v"
+                    (power_menu))))
 
-        (defwidget brightness_hotkey_indicator []
-        (box :class "hotkey-indicator"
-            (hotkey_indicator
-                :icon "${security-icon}"
-                :level {brightness.screen.level})))
-        (defwidget volume_hotkey_indicator []
-        (box :class "hotkey-indicator"
-            (hotkey_indicator
-                :icon "${bluetooth-1-icon}"
-                :level {volume?.level})))
+        ;; Generic Hotkey Indicator Widget ;;
+        (defwidget hotkey_indicator [icon level] 
+            (box :class "hotkey" 
+                :active false
+                (sys_slider
+                    :valign "center"
+                    :icon icon
+                    :level level)))
 
-        ;; Battery ;;
-        (defwidget bat [?capacity ?status ?remaining]
-            (tooltip
-                (label  :class "tooltip"
-                        :text { status == 'Charging' ? "''${status} ''${capacity}%" :
-                                status == 'N/A' ? "Battery N/A" :
-                                remaining != "" ? "Battery ''${capacity}% (''${remaining})" : "Battery ''${capacity}%" })
-                (button :class "icon_button"
-                    (image :path { status == 'Charging' ? "${battery-charging-icon}" : status == 'N/A' ? "${battery-charging-icon}" :
-                                    capacity < 10 ? "${battery-0-icon}" :
-                                        capacity <= 30 ? "${battery-1-icon}" :
-                                            capacity <= 70 ? "${battery-2-icon}" : "${battery-3-icon}" }))))
-        (defwidget bat-icon-widget [?capacity ?status]
-            (image :path { status == 'Charging' ? "${battery-charging-icon}" : status == 'N/A' ? "${battery-charging-icon}" :
-                    capacity < 10 ? "${battery-0-icon}" :
-                        capacity <= 30 ? "${battery-1-icon}" :
-                            capacity <= 70 ? "${battery-2-icon}" : "${battery-3-icon}" }))
+        ;; Hotkeys Widget ;;
+        (defwidget hotkeys []
+            (revealer :transition "crossfade" :duration "200ms" :reveal { hotkey-brightness-visible || hotkey-volume-visible }
+                (box :vexpand false
+                    :hexpand false
+                    :orientation "v"
+                    :class "wrapper_widget"
+                    (stack :transition "none"
+                        :selected { hotkey-source == "brightness" ? "0" : "1" }
+                        (hotkey_indicator
+                            :icon {brightness.icon}
+                            :level {brightness.screen.level})
+                        (hotkey_indicator
+                            :icon {volume.icon}
+                            :level { volume.muted == "true" ? "0" : volume.level })))))
 
-        ;; Wifi ;;
-        (defwidget wifi []
-            (tooltip
-            (label  :class "tooltip"
-                    :text {wifi.connected != 'false' ? "''${wifi.connected}: ''${wifi.ssid}" : "No connection"})
-            (button :class "icon_button"
-                    :onclick "${pkgs.nm-launcher}/bin/nm-launcher &"
-                    (image :path {wifi.connected == "false" ? "${wifi-0-icon}":
-                            "''${wifi.signal ?: -1}" < 0 ? "${wifi-0-icon}" :
-                                "''${wifi.signal ?: -1}" < 30 ? "${wifi-1-icon}" :
-                                    "''${wifi.signal ?: -1}" < 60 ? "${wifi-2-icon}" :
-                                        "''${wifi.signal ?: -1}" < 80 ? "${wifi-3-icon}" : "${wifi-4-icon}"}))))
-
-        ;; Bluetooth ;;
-        (defwidget bluetooth []
-            (button :class "icon_button"
-                (image 
-                :path "${bluetooth-1-icon}")))
-
-        ;; Security ;;
-        (defwidget security []
-            (button :class "icon_button"
-                (image 
-                :path "${security-icon}")))
-
-        ;; Quick settings button ;;
-        (defwidget quick-settings-button [screen wifi-icon bat-icon vol-icon bright-icon]
+        ;; Quick Settings Button ;;
+        (defwidget quick-settings-button [screen bat-icon vol-icon bright-icon]
             (button :class "icon_button" :onclick "${eww-popup}/bin/eww-popup quick-settings ''${screen} &"
                 (box :orientation "h"
                     :space-evenly "false" 
@@ -656,12 +696,9 @@ in
                         :style "background-image: url(\"''${vol-icon}\")")
                     (box :class "icon"
                         :hexpand false
-                        :style "background-image: url(\"''${bat-icon}\")")
-                    (box :class "icon"
-                        :hexpand false
-                        :style "background-image: url(\"''${wifi-icon}\")"))))
+                        :style "background-image: url(\"''${bat-icon}\")"))))
 
-        ;; Power menu launcher ;;
+        ;; Power Menu Launcher ;;
         (defwidget power-menu-launcher [screen]
             (button :class "icon_button icon" 
                 :halign "center" 
@@ -671,7 +708,7 @@ in
                     :hexpand false
                     :style "background-image: url(\"${power-icon}\")")))
 
-        ;; Control Panel Widgets ;;	
+        ;; Quick Settings Launcher ;;	
         (defwidget control [screen]
             (box :orientation "h" 
                 :space-evenly "false" 
@@ -681,14 +718,7 @@ in
                 (quick-settings-button :screen screen
                     :bright-icon {brightness.icon}
                     :vol-icon {volume.icon}
-                    :wifi-icon {wifi.icon}
-                    :bat-icon { EWW_BATTERY.BAT0.status == "Charging" ? "${battery-charging-icon}" : 
-                                EWW_BATTERY.BAT0.status == "" ?         "${battery-charging-icon}" :
-                                EWW_BATTERY.BAT0.capacity < 10 ?        "${battery-0-icon}" :
-                                EWW_BATTERY.BAT0.capacity <= 30 ?       "${battery-1-icon}" :
-                                EWW_BATTERY.BAT0.capacity <= 70 ?       "${battery-2-icon}" : 
-                                                                        "${battery-3-icon}" }
-                    )))
+                    :bat-icon {battery.icon})))
 
         ;; Divider ;;
         (defwidget divider []
@@ -708,26 +738,24 @@ in
         ;; Clock ;;
         (defwidget time []
             (label 
-                :text time
+                :text "''${formattime(EWW_TIME, "%H:%M")}"
                 :class "time"))
 
         ;; Date ;;
         (defwidget date [screen]
             (button 
-                :onclick "${eww-popup}/bin/eww-popup calendar ''${screen} &"
-                :class "icon_button date" date))
+                :onclick "''${EWW_CMD} update calendar_day=\"$(date +%d)\" calendar_month=\"$(date +%-m)\" calendar_year=\"$(date +%Y)\"; ${eww-popup}/bin/eww-popup calendar ''${screen} &"
+                :class "icon_button date" "''${formattime(EWW_TIME, "%a %b %-d")}"))
 
         ;; Calendar ;;
         (defwidget cal []
-        (eventbox
-            :onhoverlost "${eww-popup}/bin/eww-popup calendar &"
-            (box :class "cal-box" 
-            (box :class "cal-inner-box"
-                (calendar :class "cal" 
-                    :show-week-numbers false
-                    :day calendar_day 
-                    :month calendar_month 
-                    :year calendar_year)))))
+            (box :class "floating-widget" 
+                (box :class "wrapper_widget"
+                    (calendar :class "cal" 
+                        :show-week-numbers false
+                        :day calendar_day
+                        :month calendar_month
+                        :year calendar_year))))
 
         ;; Left Widgets ;;
         (defwidget left []
@@ -742,7 +770,7 @@ in
         (defwidget datetime-locale [screen]
             (box	
                 :orientation "h"
-                :space-evenly "false" 
+                :space-evenly "false"
                 :spacing 14
                 (language)
                 (box
@@ -759,6 +787,7 @@ in
                 :halign "end" 
                 :valign "center" 
                 :spacing 14
+                (systray :prepend-new true :class "tray")
                 (divider)
                 (control :screen screen)
                 (divider)
@@ -820,20 +849,13 @@ in
             (power-menu-widget))
 
         ;; Hotkey indicator window ;;
-        (defwindow volume-hotkey-indicator
+        (defwindow hotkey-indicator
             :monitor 0
-            :geometry (geometry :y "-200px" 
+            :geometry (geometry :y "150px" 
                                 :x "0px"
-                                :anchor "center")
+                                :anchor "bottom center")
             :stacking "overlay"
-            (volume_hotkey_indicator))
-        (defwindow brightness-hotkey-indicator
-            :monitor 0
-            :geometry (geometry :y "-200px" 
-                                :x "0px"
-                                :anchor "center")
-            :stacking "overlay"
-            (brightness_hotkey_indicator))
+            (hotkeys))
       '';
 
       # The UNIX file mode bits
@@ -842,11 +864,16 @@ in
     # Main eww bar styling
     environment.etc."eww/eww.scss" = {
       text = ''
-        * { all: unset; }
-
         $bg-primary: #121212;
         $widget-bg: #1A1A1A;
         $widget-hover: #282828;
+        $bg-secondary: #2B2B2B;
+        $text-base: #FFFFFF;
+        $text-disabled: #9c9c9c;
+        $text-success: #5AC379;
+        $icon-subdued: #3D3D3D;
+        $stroke-success: #5AC379;
+        $font-bold: 600;
 
         @mixin unset($rec: false) {
             all: unset;
@@ -858,29 +885,47 @@ in
             }
         }
 
+        * {
+            color: $text-base;
+            font-family: "Inter";
+            :disabled {
+                color: $text-disabled;
+            }
+        }
+
+        window.background {
+            background-color: transparent;
+        }
+
+        tooltip {
+            background-color: $bg-primary;
+        }
+
         @mixin widget($bg: #161616, $padding: 10px, $radius: 12px){
             border-radius: $radius;
             background-color: $bg;
             padding: $padding;
         }
 
-        @mixin wrapper_widget(){
+        @mixin wrapper_widget($padding: 14px, $radius: 6px){
             @include widget($padding: 14px, $radius: 6px, $bg: $bg-primary);
         }
 
-        @mixin floating_widget($margin: 0em 0.3em 0em 0em){
-            @include unset($rec: true);
-            border-radius: 6px;
+        @mixin floating_widget($margin: 0.3em 0.3em 0em 0em, $padding: 14px, $radius: 6px, $unset: true) {
+            @if $unset {
+              @include unset($rec: true);
+            }
+            border-radius: $radius;
             margin: $margin;
 
-            .wrapper_widget { @include wrapper_widget; }
-            box-shadow: 0px 32px 64px 0px rgba(0, 0, 0, 0.24);
+            .wrapper_widget { @include wrapper_widget($padding: $padding, $radius: $radius); }
         }
 
         @mixin icon(){
             background-color: transparent;
             background-repeat: no-repeat;
             background-position: center;
+            background-size: contain;
             min-height: 24px;
             min-width: 24px;
             font-family: Fira Code;
@@ -889,7 +934,7 @@ in
         }
 
         @mixin icon-button($bg: transparent, $hover-bg: $widget-hover) {
-            @include unset($rec: true);
+            @include unset;
             @include icon;
 
             border-radius: 0.25em;
@@ -911,30 +956,37 @@ in
             }
         }
 
-        @mixin slider($slider-width: 225px, $slider-height: 2px, $thumb: true, $thumb-width: 1em, $focusable: true, $radius: 7px, $shadows: true, $trough-bg: #282828) {
+        @mixin slider($slider-width: 225px, $slider-height: 2px, $thumb: true, $thumb-width: 1em, $focusable: true, $radius: 7px, $shadows: true, $trough-bg: $widget-hover) {
             trough {
                 border-radius: $radius;
                 border: 0;
                 background-color: $trough-bg;
                 min-height: $slider-height;
                 min-width: $slider-width;
-                margin: $thumb-width;
+                margin: $thumb-width / 2;
 
                 highlight,
                 progress {
-                    background-color: ${stroke-success};
+                    background-color: $stroke-success;
                     border-radius: $radius;
                 }
             }
 
             slider {
-                box-shadow: none;
-                background-color: #D3D3D3;
-                border: 0 solid transparent;
-                border-radius: 50%;
-                min-height: $thumb-width;
-                min-width: $thumb-width;
-                margin: -($thumb-width / 2) 0;
+                @if $thumb {
+                    box-shadow: none;
+                    background-color: #D3D3D3;
+                    border: 0 solid transparent;
+                    border-radius: 50%;
+                    min-height: $thumb-width;
+                    min-width: $thumb-width;
+                    margin: -($thumb-width / 2) 0;
+                } @else {
+                    margin: 0;
+                    min-width: 0;
+                    min-height: 0;
+                    background-color: transparent;
+                }
             }
 
             &:hover {
@@ -943,29 +995,27 @@ in
                         background-color: #D3D3D3;
 
                         @if $shadows {
-                            box-shadow: 0 0 3px 0 $bg-primary;
+                            box-shadow: 0px 0px 3px 0px $bg-primary;
                         }
                     }
                 }
             }
 
             &:disabled {
-
                 highlight,
                 progress {
-                    background-color: transparentize(#D3D3D3, 0.4);
                     background-image: none;
                 }
             }
 
             @if $focusable {
                 trough:focus {
-                    box-shadow: inset 0 0 0 1 $bg-primary;
+                    box-shadow: inset 0px 0px 0px 1px $bg-primary;
 
                     slider {
                         @if $thumb {
                             background-color: red;
-                            box-shadow: inset 0 0 0 1 $bg-primary;
+                            box-shadow: inset 0px 0px 0px 1px $bg-primary;
                         }
                     }
                 }
@@ -977,7 +1027,7 @@ in
             .slider{ @include slider; }
 
             .header {
-                font-size: 0.8em;
+                font-size: 0.9em;
                 font-weight: 500;
                 font-family: Inter;
             }
@@ -985,41 +1035,11 @@ in
             .settings{
                 @include icon-button;
                 margin-left: 0.15em;
-
-                .icon{
-                    @include icon;
-                }
             }
 
-            .icon{
-                background-color: transparent;
-                background-repeat: no-repeat;
-                background-position: center;
-                min-height: 24px;
-                min-width: 24px;
+            .icon_settings{
+                @include icon-button;
                 margin-right: 0.15em;
-            }
-        }
-
-        @mixin widget-button() {
-            @include unset($rec: true);
-
-            border-radius: 50%;
-            padding: 0.2em;
-            background-color: transparent;
-            background-repeat: no-repeat;
-            background-position: center;
-            min-height: 24px;
-            min-width: 24px;
-
-            &:hover {
-                transition: 200ms linear background-color;
-                background-color: $widget-hover;
-            }
-
-            &:disabled {
-                background-color: transparentize($widget-hover, 0.4);
-                background-image: none;
             }
         }
 
@@ -1030,18 +1050,13 @@ in
             background-color: $bg;
         }
 
-        @mixin qs-info-button($min-width: 145px, $radius: 0.75em, $bg: $widget-bg, $padding: 1em, $icon-padding: 0.3em) {
-            @include unset($rec: true);
-            @include qs-widget ();
+        @mixin widget-button($min-width: 133px, $min-height: 58px, $radius: 0.75em, $bg: $widget-bg, $padding: 0.8em, $icon-padding: 0) {
+            @include qs-widget($min-width: $min-width, $min-height: $min-height);
 
-            .qs-info-button-padding {
+            .inner-box {
                 padding: $padding;
-            }
-
-            .title {
-                font-size: 0.8em;
-                font-weight: 500;
-                font-family: Inter;
+                min-width: $min-width;
+                min-height: $min-height;
             }
 
             &:hover {
@@ -1064,91 +1079,67 @@ in
             }
 
             .text {
-                color: ${text-base};
-                font-family: "Inter";
-                
                 .header {
                     font-weight: 600;
+                    font-size: 1em;
+                }
+
+                .title {
                     font-size: 0.9em;
+                    font-weight: 500;
+                    font-family: Inter;
                 }
 
                 .subtitle {
                     font-weight: 400;
-                    font-size: 0.7em;
+                    font-size: 0.8em;
                     min-height: 0px;
                 }
             }
         }
 
-        .qs-widget{ @include qs-widget; }
+        .qs-widget { 
+            @include unset($rec: true);
+            @include qs-widget;
+        }
 
-        .wrapper_widget { @include wrapper_widget; }
+        .wrapper_widget { 
+            @include unset($rec: true);
+            @include wrapper_widget; 
+        }
 
         .icon { @include icon; }
 
-        .quick-settings{
-            @include floating_widget;
-        }
+        .floating-widget { @include floating_widget; }
 
-        .qs-slider{ 
+        .qs-slider { 
+            @include unset($rec: true);
             @include sys-sliders;
-            @include qs-widget;
-            padding: 0.625em;
+            @include qs-widget($min-height: 0px);
+            padding: 0.8em;
         }
 
-        .hotkey-indicator{
-            @include floating_widget($margin: 0);
-
-            .widget{
-                @include widget;
-            }
-
-            .percent{
-                margin-left: 1em;
-                min-width: 2.6em;
-            }
-            
-            .icon{
-                background-color: $bg-primary;
-                background-repeat: no-repeat;
-                background-position: center;
-                min-height: 24px;
-                min-width: 24px;
-                margin-right: 1em;
-
-            }
+        .hotkey {
+            @include floating_widget($margin: 0, $padding: 10px 12px);
+            @include icon;
+            .slider{ @include slider($slider-width: 150px, $thumb: false, $slider-height: 5px); }
         }
 
-        .widget-button { @include widget-button; }
+        .widget-button {@include widget-button; }
 
-        .qs-info-button {@include qs-info-button; }
-
-        .qs-info-button-small {
-            @include qs-info-button($min-width: 75px, $padding: 0.3em, $icon-padding: 0.1em);
-        }
+        .power-menu-button {@include widget-button($min-height: 33px); }
 
         .eww_bar {
             background-color: $bg-primary;
             padding: 0.2em 1em 0.2em 1em;
-            margin-bottom: 0.3em;
         }
 
         .icon_button {
             @include icon-button;
         }
 
-        .tooltip {
-            background-color: $bg-primary;
-            color: ${text-base};
-            font-family: "Inter";
-            font-size: 1em;
-            font-weight: ${font-bold};
-            padding: 0.25em 0.5em;
-            border-radius: 4px;
-        }
-
         .divider {
-            background-color: ${icon-subdued};
+            background-color: $icon-subdued;
             padding-left: 1px;
             padding-right: 1px;
             border-radius: 10px;
@@ -1158,92 +1149,153 @@ in
             padding: 0.4em 0.25em;
             border-radius: 0.25em;
             background-color: $bg-primary;
-            font-family: "Inter";
-            font-weight: ${font-bold};
+            font-weight: $font-bold;
             font-size: 1em;
-            color: ${text-base};
         }
 
         .date {
             padding: 0.4em 0.25em;
             border-radius: 0.25em;
-            font-family: "Inter";
-            font-weight: ${font-bold};
+            font-weight: $font-bold;
             font-size: 1em;
-            color: ${text-base};
         }
 
         .keyboard-layout {
             padding: 0.4em 0.25em;
             border-radius: 4px;
             background-color: $bg-primary;
-            font-family: "Inter";
-            font-weight: ${font-bold};
+            font-weight: $font-bold;
             font-size: 1em;
-            color: ${text-base};
         }
 
         .spacer {
             background-color: transparent;
         }
 
-        .cal-box {
-            @include floating_widget;
-            background-color: $bg-primary;
-        }
-
         .cal {
-            font-family: "Inter";
             font-size: 1.2em;
             padding: 0.2em 0.2em;
+
+            calendar {
+                font-size: 1.2em;
+                padding: 0.2em 0.2em;
+
+                &.header {
+                    font-weight: $font-bold;
+                    font-size: 1.5em;
+                }
+
+                &.button {
+                    color: $stroke-success;
+                    padding: 0.3em;
+                    border-radius: 4px;
+                    border: none;
+
+                    &:hover {
+                        background-color: $bg-secondary;
+                    }
+                }
+
+                &.stack.month {
+                    padding: 0 5px;
+                }
+                &.label.year {
+                    padding: 0 5px;
+                }
+
+                &:selected {
+                    color: $text-success;
+                }
+
+                &:indeterminate {
+                    color: $text-disabled;
+                }
+            }
         }
 
-        .cal-box .cal-inner-box {
-            @include wrapper_widget;
-        }
+        .tray menu {
+            font-family: Inter;
+            font-size: 1.1em;
+            background-color: $bg-primary;
 
-        calendar.header {
-            color: ${text-base};
-            font-weight: ${font-bold};
-        }
+            >menuitem {
+                font-size: 1em;
+                padding: 5px 7px;
 
-        calendar:selected {
-            color: ${text-success};
-        }
+                &:hover {
+                    background-color: $widget-hover;
+                }
 
-        calendar.button {
-            color: ${stroke-success};
-            padding: 0.3;
-            border-radius: 4px;
-            border: none;
-        }
+                >check {
+                  border-width: 1px;
+                  border-color: transparent;
+                  min-height: 16px;
+                  min-width: 16px;
+                  color: transparent;
+                  background-color: transparent;
 
-        calendar.button:hover {
-            background-color: ${bg-secondary};
-        }
+                  &:checked {
+                    border-color: $text-base;
+                    color: $text-base;
+                  }
+                }
 
-        calendar:indeterminate {
-            color: $bg-primary;
-        }
+                >arrow {
+                    color: $text-base;
+                    background-color: transparent;
+                    margin-left: 10px;
+                    min-height: 16px;
+                    min-width: 16px;
+                }
+            }
 
+            >arrow {
+                background-color: transparent;
+                color: $text-base;
+            }
+
+            separator {
+                background-color: $icon-subdued;
+                padding-top: 1px;
+                padding-bottom: 1px;
+                border-radius: 10px;
+
+                &:last-child {
+                    padding: unset;
+                }
+            }
+        }
       '';
 
       # The UNIX file mode bits
       mode = "0644";
     };
 
+    services.udev.extraRules = ''
+      ACTION=="change", SUBSYSTEM=="drm", TAG+="systemd", ENV{SYSTEMD_USER_WANTS}="eww-restart.service"
+    '';
+
     systemd.user.services.ewwbar = {
       enable = true;
       description = "ewwbar";
       serviceConfig = {
         Type = "forking";
-        ExecStart = "${eww-start}/bin/eww-start";
+        ExecStart = "${ewwbar-ctrl}/bin/ewwbar-ctrl start";
+        ExecReload = "${ewwbar-ctrl}/bin/ewwbar-ctrl kill";
         Environment = "XDG_CACHE_HOME=/tmp/.ewwcache";
         Restart = "always";
-        RestartSec = 1;
+        RestartSec = "100ms";
       };
       wantedBy = [ "ghaf-session.target" ];
       partOf = [ "ghaf-session.target" ];
+    };
+
+    systemd.user.services.eww-restart = {
+      description = "eww-restart";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "systemctl --user reload ewwbar.service || true";
+      };
     };
   };
 }

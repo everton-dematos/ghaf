@@ -32,8 +32,10 @@ let
     "teams-for-linux.svg"
     "thorium-browser.svg"
     "utilities-terminal.svg"
+    "xarchiver.svg"
     "yast-vpn.svg"
     "system-file-manager.svg"
+    "utilities-tweak-tool.svg"
   ];
 in
 runCommand "icon-pack"

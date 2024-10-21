@@ -68,6 +68,14 @@ let
             storagevm = {
               enable = true;
               name = "guivm";
+              directories = [
+                {
+                  directory = "/var/lib/private/ollama";
+                  inherit (config.ghaf.users.accounts) user;
+                  group = "ollama";
+                  mode = "u=rwx,g=,o=";
+                }
+              ];
               users.${config.ghaf.users.accounts.user}.directories = [
                 ".cache"
                 ".config"
@@ -78,6 +86,7 @@ let
             };
             services.disks.enable = true;
             services.disks.fileManager = "${pkgs.pcmanfm}/bin/pcmanfm";
+            services.xdghandlers.enable = true;
           };
 
           systemd.services."waypipe-ssh-keygen" =
@@ -118,6 +127,7 @@ let
                 pkgs.pamixer
                 pkgs.eww
               ]
+              ++ [ pkgs.ctrl-panel ]
               ++ (lib.optional (
                 config.ghaf.profiles.debug.enable && config.ghaf.virtualization.microvm.idsvm.mitmproxy.enable
               ) pkgs.mitmweb-ui)
@@ -147,7 +157,7 @@ let
           microvm = {
             optimize.enable = false;
             vcpu = 2;
-            mem = 2048;
+            mem = 12288;
             hypervisor = "qemu";
             shares = [
               {
@@ -184,21 +194,39 @@ let
           imports = [
             ../../../common
             ../../../desktop
+            ../../../reference/services
           ];
 
+          ghaf.reference.services.ollama = true;
+
           # Waypipe service runs in the GUIVM and listens for incoming connections from AppVMs
-          systemd.user.services.waypipe = {
-            enable = true;
-            description = "waypipe";
-            serviceConfig = {
-              Type = "simple";
-              ExecStart = "${pkgs.waypipe}/bin/waypipe --vsock -s ${toString cfg.waypipePort} client";
-              Restart = "always";
-              RestartSec = "1";
+          systemd.user.services = {
+            waypipe = {
+              enable = true;
+              description = "waypipe";
+              serviceConfig = {
+                Type = "simple";
+                ExecStart = "${pkgs.waypipe}/bin/waypipe --vsock -s ${toString cfg.waypipePort} client";
+                Restart = "always";
+                RestartSec = "1";
+              };
+              startLimitIntervalSec = 0;
+              partOf = [ "ghaf-session.target" ];
+              wantedBy = [ "ghaf-session.target" ];
             };
-            startLimitIntervalSec = 0;
-            partOf = [ "ghaf-session.target" ];
-            wantedBy = [ "ghaf-session.target" ];
+
+            nm-applet = {
+              enable = true;
+              description = "network manager graphical interface.";
+              serviceConfig = {
+                Type = "simple";
+                Restart = "always";
+                RestartSec = "1";
+                ExecStart = "${pkgs.nm-launcher}/bin/nm-launcher";
+              };
+              partOf = [ "ghaf-session.target" ];
+              wantedBy = [ "ghaf-session.target" ];
+            };
           };
         }
       )

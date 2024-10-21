@@ -34,7 +34,7 @@ in
     };
     wallpaper = lib.mkOption {
       type = lib.types.path;
-      default = "${pkgs.ghaf-artwork}/ghaf-wallpaper.png";
+      default = "${pkgs.ghaf-artwork}/ghaf-desert-sunset.jpg";
       description = "Path to the wallpaper image";
     };
     frameColouring = lib.mkOption {
@@ -75,12 +75,12 @@ in
           colour = "#122263";
         }
         {
-          identifier = "Element";
-          colour = "#337aff";
+          identifier = "pqiv";
+          colour = "#122263";
         }
         {
-          identifier = "AppFlowy";
-          colour = "#4c3f7a";
+          identifier = "Element";
+          colour = "#337aff";
         }
         {
           identifier = "org.gnome.TextEditor";
