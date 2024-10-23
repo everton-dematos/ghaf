@@ -7,10 +7,10 @@
 }:
 let
   ldpiSrc = fetchFromGitHub {
-    owner = "everton-dematos";
+    owner = "tiiuae";
     repo = "srta-ldpi";
-    rev = "logging_wip";
-    sha256 = "sha256-q9yyoxeKWGpQA6JO9sSbD1EpRRaNVSVZPPVBCLq7o9Y="; 
+    rev = "ghaf";
+    sha256 = "sha256-Mc0liLKuflJ9lHkK2G9QHneKrWNUHZsYeB2btoHntUA="; 
   };
 in
 
