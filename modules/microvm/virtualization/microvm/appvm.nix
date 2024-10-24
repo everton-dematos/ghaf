@@ -82,6 +82,7 @@ let
 
                 ghaf-audio = {
                   inherit (vm.ghafAudio) enable;
+                  inherit (vm.ghafAudio) useTunneling;
                   name = "${vm.name}";
                 };
 
@@ -161,6 +162,8 @@ let
                       "accel=kvm:tcg,mem-merge=on,sata=off"
                       "-device"
                       "vhost-vsock-pci,guest-cid=${toString cid}"
+                      "-device"
+                      "qemu-xhci"
                     ]
                     ++ lib.optionals vm.vtpm.enable [
                       "-chardev"
@@ -268,7 +271,10 @@ in
               type = types.nullOr types.str;
               default = null;
             };
-            ghafAudio.enable = lib.mkEnableOption "Ghaf application audio support";
+            ghafAudio = {
+              enable = lib.mkEnableOption "Ghaf application audio support";
+              useTunneling = lib.mkEnableOption "Use Pulseaudio tunneling";
+            };
             vtpm.enable = lib.mkEnableOption "vTPM support in the virtual machine";
           };
         }
