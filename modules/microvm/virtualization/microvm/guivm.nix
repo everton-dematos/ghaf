@@ -59,6 +59,7 @@ let
               enable = true;
               withName = "guivm-systemd";
               withAudit = config.ghaf.profiles.debug.enable;
+              withLocaled = true;
               withNss = true;
               withResolved = true;
               withTimesyncd = true;
@@ -130,6 +131,7 @@ let
                 pkgs.bt-launcher
                 pkgs.pamixer
                 pkgs.eww
+                pkgs.wlr-randr
               ]
               ++ [ pkgs.ctrl-panel ]
               ++ (lib.optional (
