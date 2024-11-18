@@ -31,6 +31,18 @@ let
       ../../../common/logging/client.nix
       (
         { lib, pkgs, ... }:
+        let
+          inherit (builtins) replaceStrings;
+          cliArgs = replaceStrings [ "\n" ] [ " " ] ''
+            --name ${config.ghaf.givc.adminConfig.name}
+            --addr ${config.ghaf.givc.adminConfig.addr}
+            --port ${config.ghaf.givc.adminConfig.port}
+            ${lib.optionalString config.ghaf.givc.enableTls "--cacert /run/givc/ca-cert.pem"}
+            ${lib.optionalString config.ghaf.givc.enableTls "--cert /run/givc/ghaf-host-cert.pem"}
+            ${lib.optionalString config.ghaf.givc.enableTls "--key /run/givc/ghaf-host-key.pem"}
+            ${lib.optionalString (!config.ghaf.givc.enableTls) "--notls"}
+          '';
+        in
         {
           ghaf = {
             users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
@@ -94,6 +106,37 @@ let
             services.xdghandlers.enable = true;
           };
 
+          services.acpid = lib.mkIf config.ghaf.givc.enable {
+            enable = true;
+            lidEventCommands = ''
+              case "$1" in
+                "button/lid LID close")
+                  # Lock sessions
+                  ${pkgs.systemd}/bin/loginctl lock-sessions
+
+                  # Switch off display, if wayland is running
+                  if ${pkgs.procps}/bin/pgrep -fl "wayland" > /dev/null; then
+                    wl_running=1
+                    WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
+                  else
+                    wl_running=0
+                  fi
+
+                  # Initiate Suspension
+                  ${pkgs.givc-cli}/bin/givc-cli ${cliArgs} suspend
+
+                  # Enable display
+                  if [ "$wl_running" -eq 1 ]; then
+                    WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
+                  fi
+                  ;;
+                "button/lid LID open")
+                  # Command to run when the lid is opened
+                  ;;
+              esac
+            '';
+          };
+
           systemd.services."waypipe-ssh-keygen" =
             let
               keygenScript = pkgs.writeShellScriptBin "waypipe-ssh-keygen" ''
@@ -141,6 +184,7 @@ let
               ++ lib.optionals config.ghaf.profiles.debug.enable [
                 pkgs.glxinfo
                 pkgs.libva-utils
+                pkgs.glib
               ];
             sessionVariables = {
               XDG_PICTURES_DIR = "$HOME/Pictures";
@@ -205,18 +249,9 @@ let
 
           ghaf.reference.services.ollama = true;
 
-          systemd.user.services.nm-applet = {
-            enable = true;
-            description = "network manager graphical interface.";
-            serviceConfig = {
-              Type = "simple";
-              Restart = "always";
-              RestartSec = "1";
-              ExecStart = "${pkgs.nm-launcher}/bin/nm-launcher";
-            };
-            partOf = [ "ghaf-session.target" ];
-            wantedBy = [ "ghaf-session.target" ];
-          };
+          # We dont enable services.blueman because it adds blueman desktop entry
+          services.dbus.packages = [ pkgs.blueman ];
+          systemd.packages = [ pkgs.blueman ];
         }
       )
     ];

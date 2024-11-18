@@ -11,7 +11,9 @@ let
   inherit (lib) optionalString;
 
   cfg = config.ghaf.graphics.labwc;
+  useGivc = config.ghaf.givc.enable;
   ghaf-workspace = pkgs.callPackage ../../../packages/ghaf-workspace { };
+  inherit (config.ghaf.services.audio) pulseaudioTcpControlPort;
 
   launcher-icon = "${pkgs.ghaf-artwork}/icons/launcher.svg";
 
@@ -150,7 +152,7 @@ let
       start() {
         # Get the number of connected displays using wlr-randr and parse the output with jq
         displays=$(wlr-randr --json | jq 'length')
-        
+
         # Check if there are any connected displays
         if [ "$displays" -eq 0 ]; then
             echo "No connected displays found."
@@ -171,9 +173,6 @@ let
             echo Starting ewwbar for display $display
             ${eww} open --no-daemonize --screen "$display" bar --id bar:$display --arg screen="$display"
         done
-
-        # Open a widget for hotkey indicators only on main display
-        #${eww} open --no-daemonize hotkey-indicator
       }
 
       # Reloads current config without opening new windows
@@ -183,7 +182,10 @@ let
       }
 
       update-vars() {
-        volume=$(${eww-volume}/bin/eww-volume get)
+        local volume
+        ${lib.optionalString useGivc ''
+          volume=$(${eww-volume}/bin/eww-volume get)
+        ''}
         brightness=$(${eww-brightness}/bin/eww-brightness get)
         battery=$(${eww-bat}/bin/eww-bat get)
         keyboard_layout=$(setxkbmap -query | awk '/layout/{print $2}' | tr '[:lower:]' '[:upper:]')
@@ -327,7 +329,7 @@ let
     ];
     bashOptions = [ ];
     text = ''
-      export PULSE_SERVER=audio-vm:4713
+      export PULSE_SERVER=audio-vm:${toString pulseaudioTcpControlPort}
       popup_timer_pid=0
 
       show_popup() {
@@ -404,15 +406,29 @@ let
 
   eww-power = pkgs.writeShellApplication {
     name = "eww-power";
-    runtimeInputs = [ pkgs.givc-cli ];
+    runtimeInputs = if useGivc then [ pkgs.givc-cli ] else [ pkgs.systemd ];
     bashOptions = [ ];
     text = ''
       if [ $# -ne 1 ]; then
-      echo "Usage: $0 {reboot|poweroff|suspend}"
+        echo "Usage: $0 {reboot|poweroff|suspend}"
       fi
 
-      case "$1" in (reboot|poweroff|suspend)
-          givc-cli ${cliArgs} "$1"
+      case "$1" in
+      reboot|poweroff)
+          ${if useGivc then "givc-cli ${cliArgs}" else "systemctl"} "$1"
+          ;;
+      suspend)
+          # Lock sessions
+          ${pkgs.systemd}/bin/loginctl lock-session
+
+          # Switch off display before suspension
+          WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
+
+          # Send suspend command to host
+          ${if useGivc then "${pkgs.givc-cli}/bin/givc-cli ${cliArgs}" else "systemctl"} suspend
+
+          # Switch on display on wakeup
+          WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
           ;;
       *)
           echo "Invalid argument: $1"
@@ -421,10 +437,9 @@ let
       esac
     '';
   };
-
 in
 {
-  config = lib.mkIf (cfg.enable && config.ghaf.givc.enable) {
+  config = lib.mkIf cfg.enable {
     # Main eww bar config
     environment.etc."eww/eww.yuck" = {
       text = ''
@@ -512,7 +527,7 @@ in
                         :icon-onclick "${eww-volume}/bin/eww-volume mute &"
                         :settings-icon "${arrow-right-icon}"
                         :level { volume.muted == "true" ? "0" : volume.level }
-                        :onchange "PULSE_SERVER=audio-vm:4713 ${pkgs.pamixer}/bin/pamixer --unmute --set-volume {} &")
+                        :onchange "PULSE_SERVER=audio-vm:${toString pulseaudioTcpControlPort} ${pkgs.pamixer}/bin/pamixer --unmute --set-volume {} &")
                 (sys_slider
                         :header "Display"
                         :level {brightness.screen.level}
@@ -593,41 +608,43 @@ in
                     :title "Lock"
                     :onclick "''${EWW_CMD} close power-menu closer & loginctl lock-session &")))
 
-        ;; Quick Settings Buttons ;;
-        (defwidget settings_buttons []
-            (box
-                :orientation "v"
-                :spacing 10
-                (box
-                    :orientation "h"
-                    (widget_button
-                        :icon "${bluetooth-1-icon}"
-                        :header "Bluetooth"
-                        :onclick "''${EWW_CMD} close quick-settings closer & ${pkgs.bt-launcher}/bin/bt-launcher &")
-                    (box
-                        :hexpand true
-                        :vexpand true
-                        :class "spacer"))))
+        ${lib.optionalString useGivc ''
+          ;; Quick Settings Buttons ;;
+          (defwidget settings_buttons []
+              (box
+                  :orientation "v"
+                  :spacing 10
+                  (box
+                      :orientation "h"
+                      (widget_button
+                          :icon "${bluetooth-1-icon}"
+                          :header "Bluetooth"
+                          :onclick "''${EWW_CMD} close quick-settings closer & ${pkgs.bt-launcher}/bin/bt-launcher &")
+                      (box
+                          :hexpand true
+                          :vexpand true
+                          :class "spacer"))))
 
-        ;; Battery Widget In Quick Settings ;;
-        (defwidget etc []
-            (box :orientation "h"
-                :space-evenly true
-                :spacing 10
-                (widget_button
-                    :visible { EWW_BATTERY != "" ? "true" : "false" }
-                    :header "Battery"
-                    :title {EWW_BATTERY != "" ? "''${battery.capacity}%" : "100%"}
-                    :subtitle { battery.status == 'Charging' ? "Charging" : 
-                                battery.hours != "0" && battery.minutes != "0" ? "''${battery.hours}h ''${battery.minutes}m" : 
-                                battery.hours == "0" && battery.minutes != "0" ? "''${battery.minutes}m" :
-                                battery.hours != "0" && battery.minutes == "0" ? "''${battery.hours}h" : 
-                                "" }
-                    :icon {battery.icon})
-                (widget_button
-                    :icon "${settings-icon}"
-                    :header "Settings"
-                    :onclick "''${EWW_CMD} close quick-settings closer & ${pkgs.ctrl-panel}/bin/ctrl-panel >/dev/null &")))
+            ;; Battery Widget In Quick Settings ;;
+            (defwidget etc []
+                (box :orientation "h"
+                    :space-evenly true
+                    :spacing 10
+                    (widget_button
+                        :visible { EWW_BATTERY != "" ? "true" : "false" }
+                        :header "Battery"
+                        :title {EWW_BATTERY != "" ? "''${battery.capacity}%" : "100%"}
+                        :subtitle { battery.status == 'Charging' ? "Charging" : 
+                                    battery.hours != "0" && battery.minutes != "0" ? "''${battery.hours}h ''${battery.minutes}m" : 
+                                    battery.hours == "0" && battery.minutes != "0" ? "''${battery.minutes}m" :
+                                    battery.hours != "0" && battery.minutes == "0" ? "''${battery.hours}h" : 
+                                    "" }
+                        :icon {battery.icon})
+                    (widget_button
+                        :icon "${settings-icon}"
+                        :header "Settings"
+                        :onclick "''${EWW_CMD} close quick-settings closer & ${pkgs.ctrl-panel}/bin/ctrl-panel >/dev/null &")))
+        ''}
 
         ;; Quick Settings Widget ;;
         (defwidget quick-settings-widget []
@@ -640,8 +657,7 @@ in
                     :spacing 10
                     :orientation "v"
                     (etc)
-                    (sys_sliders)
-                    (settings_buttons))))
+                    (sys_sliders))))
 
         ;; Power Menu Widget ;;
         (defwidget power-menu-widget []
@@ -826,10 +842,9 @@ in
                 :halign "end" 
                 :valign "center" 
                 :spacing 14
-                (systray :prepend-new true :class "tray")
+                (systray :orientation "h" :spacing 14 :prepend-new true :class "tray")
                 (divider)
-                (control :screen screen)
-                (divider)
+                ${lib.optionalString useGivc "(control :screen screen) (divider)"}
                 (datetime-locale :screen screen)
                 (divider)
                 (power-menu-launcher :screen screen)))
@@ -871,39 +886,42 @@ in
             :stacking "fg"
             (cal))
 
-        ;; Quick settings window ;;
-        (defwindow quick-settings
-            :geometry (geometry :y "0px" 
-                                :x "0px"
-                                :anchor "top right")
-            :stacking "fg"
-            (quick-settings-widget))
-
         ;; Power menu window ;;
         (defwindow power-menu
-            :geometry (geometry :y "0px" 
+            :geometry (geometry :y "0px"
                                 :x "0px"
                                 :anchor "top right")
             :stacking "fg"
             (power-menu-widget))
 
-        ;; Volume Popup Window ;;
-        (defwindow volume-popup
-            :monitor 0
-            :geometry (geometry :y "150px"
-                                :x "0px"
-                                :anchor "bottom center")
-            :stacking "overlay"
-            (volume-popup))
+        ${lib.optionalString useGivc ''
+          ;; Quick settings window ;;
+          (defwindow quick-settings
+              :geometry (geometry :y "0px" 
+                                  :x "0px"
+                                  :anchor "top right")
+              :stacking "fg"
+              (quick-settings-widget))
 
-        ;; Brightness Popup Window ;;
-        (defwindow brightness-popup
-            :monitor 0
-            :geometry (geometry :y "150px"
-                                :x "0px"
-                                :anchor "bottom center")
-            :stacking "overlay"
-            (brightness-popup))
+
+          ;; Volume Popup Window ;;
+          (defwindow volume-popup
+              :monitor 0
+              :geometry (geometry :y "150px"
+                                  :x "0px"
+                                  :anchor "bottom center")
+              :stacking "overlay"
+              (volume-popup))
+
+          ;; Brightness Popup Window ;;
+          (defwindow brightness-popup
+              :monitor 0
+              :geometry (geometry :y "150px"
+                                  :x "0px"
+                                  :anchor "bottom center")
+              :stacking "overlay"
+              (brightness-popup))
+        ''}
 
         ;; Closer Window ;;
         (defwindow closer [window]
@@ -942,7 +960,7 @@ in
 
         * {
             color: $text-base;
-            font-family: "Inter";
+            font-family: "${cfg.gtk.fontName}";
             font-size: 14px;
             :disabled {
                 color: $text-disabled;
@@ -1085,7 +1103,7 @@ in
             .header {
                 font-size: 0.9em;
                 font-weight: 500;
-                font-family: Inter;
+                font-family: ${cfg.gtk.fontName};
             }
 
             .settings{
@@ -1143,7 +1161,7 @@ in
                 .title {
                     font-size: 0.9em;
                     font-weight: 500;
-                    font-family: Inter;
+                    font-family: ${cfg.gtk.fontName};
                 }
 
                 .subtitle {
@@ -1275,7 +1293,7 @@ in
         }
 
         .tray menu {
-            font-family: Inter;
+            font-family: ${cfg.gtk.fontName};
             font-size: 1.1em;
             background-color: $bg-primary;
 
@@ -1347,6 +1365,7 @@ in
         Restart = "always";
         RestartSec = "100ms";
       };
+      startLimitIntervalSec = 0;
       wantedBy = [ "ghaf-session.target" ];
       partOf = [ "ghaf-session.target" ];
     };
@@ -1355,8 +1374,11 @@ in
       description = "eww-restart";
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "systemctl --user reload ewwbar.service || true";
+        ExecStart = "systemctl --user try-reload-or-restart ewwbar.service";
+        Restart = "on-failure";
+        RestartSec = "100ms";
       };
+      startLimitIntervalSec = 0;
       after = [ "ewwbar.service" ];
     };
   };
