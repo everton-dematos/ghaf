@@ -220,6 +220,11 @@ let
     font=${cfg.gtk.fontName} ${cfg.gtk.fontSize}
     background-color=#121212
     progress-color=source #3D8252e6
+    on-button-left=invoke-default-action
+    on-button-right=dismiss
+    on-button-middle=dismiss
+    on-touch=dismiss
+    actions=1
     border-radius=5
     border-size=0
     padding=10
@@ -290,6 +295,7 @@ in
         description = "Ghaf launcher daemon";
         serviceConfig = {
           Type = "simple";
+          EnvironmentFile = "-/etc/locale.conf";
           ExecStart = "${pkgs.nwg-drawer}/bin/nwg-drawer -r -nofs -nocats -s ${drawerStyle}";
           Restart = "always";
           RestartSec = "1";
@@ -343,6 +349,7 @@ in
         };
         wantedBy = [ "ghaf-session.target" ];
         partOf = [ "ghaf-session.target" ];
+        after = [ "ewwbar.service" ];
       };
 
       # We use existing blueman services and create overrides for both

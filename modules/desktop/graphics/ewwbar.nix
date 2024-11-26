@@ -298,8 +298,8 @@ let
             get "$current_brightness" &
             if [[ "$current_brightness" != "$prev_brightness" ]]; then
                 show_popup > /dev/null 2>&1
-                prev_brightness="$current_brightness"
             fi
+            prev_brightness="$current_brightness"
         done
       }
 
@@ -369,17 +369,26 @@ let
       }
 
       get() {
-          volume=$(pamixer --get-volume | awk '{print $1 + 0.0}')
+          if [ -z "$1" ]; then
+              volume=$(pamixer --get-volume)
+          else
+              volume="$1"
+          fi
           muted=$(pamixer --get-mute)
           icon=$(icon "$volume" "$muted")
           echo "{ \"level\": \"$volume\", \"muted\": \"$muted\", \"icon\": \"$icon\" }"
       }
 
       listen() {
+        prev_volume=""
         pactl subscribe | while read -r event; do
             if [[ "$event" == *"change"* ]]; then
-                get &
-                show_popup > /dev/null 2>&1
+                volume=$(pamixer --get-volume)
+                get "$volume" &
+                if [[ "$volume" != "$prev_volume" ]]; then
+                    show_popup > /dev/null 2>&1
+                fi
+                prev_volume="$volume"
             fi
         done
       }
@@ -422,13 +431,13 @@ let
           ${pkgs.systemd}/bin/loginctl lock-session
 
           # Switch off display before suspension
-          WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
+          WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.accounts.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
 
           # Send suspend command to host
           ${if useGivc then "${pkgs.givc-cli}/bin/givc-cli ${cliArgs}" else "systemctl"} suspend
 
           # Switch on display on wakeup
-          WAYLAND_DISPLAY=/run/user/1000/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
+          WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.accounts.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
           ;;
       *)
           echo "Invalid argument: $1"
@@ -1360,7 +1369,7 @@ in
       serviceConfig = {
         Type = "forking";
         ExecStart = "${ewwbar-ctrl}/bin/ewwbar-ctrl start";
-        ExecReload = "${ewwbar-ctrl}/bin/ewwbar-ctrl kill";
+        ExecReload = "${ewwbar-ctrl}/bin/ewwbar-ctrl reload";
         Environment = "XDG_CACHE_HOME=/tmp/.ewwcache";
         Restart = "always";
         RestartSec = "100ms";
@@ -1374,7 +1383,7 @@ in
       description = "eww-restart";
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "systemctl --user try-reload-or-restart ewwbar.service";
+        ExecStart = "systemctl --user try-restart ewwbar.service";
         Restart = "on-failure";
         RestartSec = "100ms";
       };
