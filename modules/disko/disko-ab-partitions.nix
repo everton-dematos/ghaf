@@ -30,7 +30,7 @@
   };
   disko = {
     # 8GB is the recommeneded minimum for ZFS, so we are using this for VMs to avoid `cp` oom errors.
-    memSize = 17384;
+    memSize = 24576;
     imageBuilder = {
       extraPostVM = ''
         ${pkgs.zstd}/bin/zstd --compress $out/*raw
