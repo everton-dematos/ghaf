@@ -22,6 +22,10 @@ let
     imports = [
       inputs.impermanence.nixosModules.impermanence
       inputs.self.nixosModules.givc-netvm
+      
+      # Importing the srta-ldpi module
+      inputs.srta-ldpi.nixosModules.ldpi
+      
       (import ./common/vm-networking.nix {
         inherit
           config
@@ -43,8 +47,6 @@ let
           imports = [ ../../../common ];
 
         ghaf = {
-          # Enable LDPI module
-          srta.ldpi.tools.enable = true;
 
           users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
             profiles.debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
