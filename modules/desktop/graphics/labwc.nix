@@ -140,6 +140,7 @@ in
           pkgs.labwc
           pkgs.ghaf-theme
           pkgs.papirus-icon-theme
+          pkgs.adwaita-icon-theme
 
           (import ./launchers.nix { inherit pkgs config; })
         ]
@@ -181,6 +182,9 @@ in
 
     # dconf is necessary for gsettings to work
     programs.dconf.enable = true;
+
+    # DBus service for accessing the list of user accounts and information attached to those accounts
+    services.accounts-daemon.enable = true;
 
     ghaf.graphics.launchers = lib.mkIf config.ghaf.profiles.debug.enable [
       {

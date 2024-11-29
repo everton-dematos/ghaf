@@ -11,16 +11,14 @@
   element-web = final.callPackage ../../packages/element-web { };
   waypipe = import ./waypipe { inherit final prev; };
   qemu_kvm = import ./qemu { inherit final prev; };
-  nm-launcher = final.callPackage ../../packages/nm-launcher { };
   bt-launcher = final.callPackage ../../packages/bt-launcher { };
   labwc = import ./labwc { inherit prev; };
   tpm2-pkcs11 = import ./tpm2-pkcs11 { inherit prev; };
-  waybar = import ./waybar { inherit prev; };
   mitmweb-ui = final.callPackage ../../packages/mitmweb-ui { };
   open-normal-extension = final.callPackage ../../packages/open-normal-extension { };
-  gtklock = import ./gtklock { inherit prev; };
   hardware-scan = final.callPackage ../../packages/hardware-scan { };
   globalprotect-openconnect =
     final.libsForQt5.callPackage ../../packages/globalprotect-openconnect
       { };
+  gtklock-userinfo-module = import ./gtklock-userinfo-module { inherit prev; };
 })

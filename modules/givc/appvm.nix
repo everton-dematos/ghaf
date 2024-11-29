@@ -36,10 +36,13 @@ in
     # Configure appvm service
     givc.appvm = {
       enable = true;
-      inherit (cfg) name;
+      inherit (config.ghaf.givc) debug;
+      agent = {
+        inherit (cfg) name;
+        addr = address cfg.name;
+        port = "9000";
+      };
       inherit (cfg) applications;
-      addr = address cfg.name;
-      port = "9000";
       tls.enable = config.ghaf.givc.enableTls;
       admin = config.ghaf.givc.adminConfig;
     };

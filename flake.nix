@@ -26,9 +26,9 @@
 
   inputs = {
     #TODO: carrying the extra patch(es) until merged to unstable
-    nixpkgs.url = "github:tiiuae/nixpkgs/nixos-unstable-gbenchmark";
+    #nixpkgs.url = "github:tiiuae/nixpkgs/nixos-unstable-gbenchmark";
     #nixpkgs.url = "flake:mylocalnixpkgs";
-    #nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     ghafpkgs = {
       url = "github:tiiuae/ghafpkgs";
@@ -144,7 +144,7 @@
     };
 
     givc = {
-      url = "github:tiiuae/ghaf-givc/f48fa34f2c6e52b8ccfcdecb3a71d1858130a242";
+      url = "github:tiiuae/ghaf-givc/63e19e1b61a669a21c1bdd0ae5a8e169b2f2d2f6";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
@@ -156,7 +156,7 @@
     };
 
     ctrl-panel = {
-      url = "github:tiiuae/ghaf-ctrl-panel";
+      url = "github:tiiuae/ghaf-ctrl-panel/5ca381ba51c05cf370299056f6e377cd6003283f";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
