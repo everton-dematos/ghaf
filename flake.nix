@@ -38,6 +38,7 @@
         treefmt-nix.follows = "treefmt-nix";
         pre-commit-hooks-nix.follows = "git-hooks-nix";
         flake-compat.follows = "flake-compat";
+        crane.follows = "givc/crane";
       };
     };
 
@@ -63,7 +64,6 @@
       url = "github:cachix/git-hooks.nix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        nixpkgs-stable.follows = "nixpkgs";
         flake-compat.follows = "flake-compat";
       };
     };
@@ -72,15 +72,6 @@
     flake-compat = {
       url = "github:nix-community/flake-compat";
       flake = false;
-    };
-
-    nix-fast-build = {
-      url = "github:Mic92/nix-fast-build";
-      inputs = {
-        flake-parts.follows = "flake-parts";
-        nixpkgs.follows = "nixpkgs";
-        treefmt-nix.follows = "treefmt-nix";
-      };
     };
 
     # Dependencies used by other inputs
@@ -112,12 +103,15 @@
       };
     };
 
-    nixos-hardware.url = "github:NixOS/nixos-hardware";
+    nixos-hardware = {
+      #url = "flake:mylocalnixoshw";
+      url = "github:NixOS/nixos-hardware";
+    };
 
     jetpack-nixos = {
-      #url = "github:anduril/jetpack-nixos
-      url = "github:anduril/jetpack-nixos/793716c1ca29a1be6d9bea84296a933c4acdddc1";
-      #inputs.nixpkgs.follows = "nixpkgs";
+      #url = "flake:mylocaljetpack";
+      url = "github:anduril/jetpack-nixos/d0b7275c03efdc1ca9d9a02597fffd18612cb28c";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     disko = {
@@ -129,10 +123,9 @@
     # Security
     #
     lanzaboote = {
-      url = "github:nix-community/lanzaboote/v0.4.1";
+      url = "github:nix-community/lanzaboote/v0.4.2";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
         flake-parts.follows = "flake-parts";
         pre-commit-hooks-nix.follows = "git-hooks-nix";
         flake-compat.follows = "flake-compat";
@@ -140,11 +133,11 @@
     };
 
     impermanence = {
-      url = "github:nix-community/impermanence";
+      url = "github:nix-community/impermanence/32b1094d28d5fbedcc85a403bc08c8877b396255";
     };
 
     givc = {
-      url = "github:tiiuae/ghaf-givc/63e19e1b61a669a21c1bdd0ae5a8e169b2f2d2f6";
+      url = "github:tiiuae/ghaf-givc/58e0f39724dbf8b01d06497a0a00ef683d44c556";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
@@ -156,7 +149,7 @@
     };
 
     ctrl-panel = {
-      url = "github:tiiuae/ghaf-ctrl-panel/5ca381ba51c05cf370299056f6e377cd6003283f";
+      url = "github:tiiuae/ghaf-ctrl-panel/ef4b843c975030a8156390e3aa6f5536da0ad5c9";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-utils.follows = "flake-utils";
@@ -169,6 +162,14 @@
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
+      };
+    };
+
+    ci-test-automation = {
+      url = "github:tiiuae/ci-test-automation";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
       };
     };
   };

@@ -4,19 +4,12 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
   configHost = config;
   vmName = "audio-vm";
-  macAddress = "02:00:00:03:03:03";
-  isGuiVmEnabled = config.ghaf.virtualization.microvm.guivm.enable;
-
-  sshKeysHelper = pkgs.callPackage ../../../../packages/ssh-keys-helper {
-    inherit pkgs;
-    inherit config;
-  };
+  has_acpi_path = config.ghaf.hardware.definition.audio.acpiPath != null;
 
   audiovmBaseConfiguration = {
     imports = [
@@ -27,9 +20,7 @@ let
           config
           lib
           vmName
-          macAddress
           ;
-        internalIP = 5;
       })
       ./common/storagevm.nix
       ../../../common/logging/client.nix
@@ -39,18 +30,29 @@ let
           imports = [ ../../../common ];
 
           ghaf = {
-            users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
+            # Profiles
             profiles.debug.enable = lib.mkDefault configHost.ghaf.profiles.debug.enable;
-
             development = {
               ssh.daemon.enable = lib.mkDefault configHost.ghaf.development.ssh.daemon.enable;
               debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
               nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
             };
+            users.proxyUser = {
+              enable = true;
+              extraGroups = [
+                "audio"
+                "pipewire"
+              ];
+            };
+
+            # System
+            type = "system-vm";
             systemd = {
               enable = true;
               withName = "audiovm-systemd";
               withAudit = configHost.ghaf.profiles.debug.enable;
+              withAudio = true;
+              withBluetooth = true;
               withNss = true;
               withResolved = true;
               withTimesyncd = true;
@@ -58,14 +60,18 @@ let
               withHardenedConfigs = true;
             };
             givc.audiovm.enable = true;
+
+            # Storage
+            storagevm = {
+              enable = true;
+              name = vmName;
+            };
+
+            # Services
             services.audio.enable = true;
             # Logging client configuration
             logging.client.enable = configHost.ghaf.logging.client.enable;
             logging.client.endpoint = configHost.ghaf.logging.client.endpoint;
-            storagevm = {
-              enable = true;
-              name = "audiovm";
-            };
           };
 
           environment = {
@@ -84,32 +90,20 @@ let
             hostPlatform.system = configHost.nixpkgs.hostPlatform.system;
           };
 
-          services.openssh = config.ghaf.security.sshKeys.sshAuthorizedKeysCommand;
-
           microvm = {
             # Optimize is disabled because when it is enabled, qemu is built without libusb
             optimize.enable = false;
             vcpu = 2;
             mem = 384;
             hypervisor = "qemu";
-            shares =
-              [
-                {
-                  tag = "ro-store";
-                  source = "/nix/store";
-                  mountPoint = "/nix/.ro-store";
-                  proto = "virtiofs";
-                }
-              ]
-              ++ lib.optionals isGuiVmEnabled [
-                {
-                  # Add the waypipe-ssh public key to the microvm
-                  tag = config.ghaf.security.sshKeys.waypipeSshPublicKeyName;
-                  source = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
-                  mountPoint = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
-                  proto = "virtiofs";
-                }
-              ];
+            shares = [
+              {
+                tag = "ro-store";
+                source = "/nix/store";
+                mountPoint = "/nix/.ro-store";
+                proto = "virtiofs";
+              }
+            ];
             writableStoreOverlay = lib.mkIf config.ghaf.development.debug.tools.enable "/nix/.rw-store";
             qemu = {
               machine =
@@ -119,25 +113,16 @@ let
                   aarch64-linux = "virt";
                 }
                 .${configHost.nixpkgs.hostPlatform.system};
-              extraArgs = [
-                "-device"
-                "qemu-xhci"
-                "-acpitable"
-                "file=/sys/firmware/acpi/tables/NHLT"
-              ];
+              extraArgs =
+                [
+                  "-device"
+                  "qemu-xhci"
+                ]
+                ++ lib.optionals has_acpi_path [
+                  "-acpitable"
+                  "file=${config.ghaf.hardware.definition.audio.acpiPath}"
+                ];
             };
-          };
-
-          fileSystems = lib.mkIf isGuiVmEnabled {
-            ${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}.options = [ "ro" ];
-          };
-
-          # SSH is very picky about to file permissions and ownership and will
-          # accept neither direct path inside /nix/store or symlink that points
-          # there. Therefore we copy the file to /etc/ssh/get-auth-keys (by
-          # setting mode), instead of symlinking it.
-          environment.etc = lib.mkIf isGuiVmEnabled {
-            ${config.ghaf.security.sshKeys.getAuthKeysFilePathInEtc} = sshKeysHelper.getAuthKeysSource;
           };
         }
       )
@@ -161,6 +146,7 @@ in
   config = lib.mkIf cfg.enable {
     microvm.vms."${vmName}" = {
       autostart = true;
+      inherit (inputs) nixpkgs;
       config = audiovmBaseConfiguration // {
         imports = audiovmBaseConfiguration.imports ++ cfg.extraModules;
       };

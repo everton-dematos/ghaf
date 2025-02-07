@@ -52,7 +52,7 @@ in
         microvm.devices = mkForce (
           builtins.map (d: {
             bus = "pci";
-            inherit (d) path;
+            inherit (d) path qemu;
           }) config.ghaf.hardware.definition.gpu.pciDevices
         );
         ghaf.hardware.definition.gpu.pciDevices = config.ghaf.hardware.definition.gpu.pciDevices;
@@ -81,9 +81,6 @@ in
               ++ config.ghaf.hardware.definition.input.touchpad.evdev
               ++ config.ghaf.hardware.definition.input.misc.evdev
             );
-
-        # TODO: Remove this once wifi-signal-strength is changed
-        ghaf.hardware.definition.network.pciDevices = config.ghaf.hardware.definition.network.pciDevices;
       };
     };
   };

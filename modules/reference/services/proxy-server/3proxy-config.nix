@@ -9,14 +9,20 @@
 let
   cfg = config.ghaf.reference.services.proxy-server;
   inherit (lib) mkEnableOption mkIf;
-
   proxyUserName = "proxy-user";
   proxyGroupName = "proxy-admin";
-  proxyAllowListName = "allowlist.txt";
-  proxyWritableAllowListPath = "/etc/${proxyAllowListName}";
-  ms-url-fetcher = pkgs.callPackage ./ms_url_fetcher.nix {
-    allowListPath = proxyWritableAllowListPath;
-  };
+  url-fetcher = pkgs.callPackage ./url_fetcher.nix { };
+
+  msUrls = "https://endpoints.office.com/endpoints/worldwide?clientrequestid=b10c5ed1-bad1-445f-b386-b919946339a7";
+  ghafUrls = "https://api.github.com/repos/tiiuae/ghaf-rt-config/contents/network/proxy/urls?ref=main";
+
+  msAllowFilePath = "3proxy/ms_whitelist.txt";
+  ghafAllowFilePath = "3proxy/ghaf_whitelist.txt";
+
+  allowListPaths = [
+    msAllowFilePath
+    ghafAllowFilePath
+  ];
 
   _3proxy-restart = pkgs.writeShellApplication {
     name = "3proxy-restart";
@@ -40,90 +46,6 @@ let
       echo "3proxy service successfully started"
     '';
   };
-  tiiUrls = [
-    #for jira avatars
-    "*.gravatar.com"
-    # for confluence icons
-    "*.atlassian.com"
-    "*tii.ae"
-    "*tii.org"
-    "tiiuae.sharepoint.com"
-    "tiiuae-my.sharepoint.com"
-    "hcm22.sapsf.com"
-    "aderp.addigital.gov.ae"
-    "s1.mn1.ariba.com"
-    "tii.sourcing.mn1.ariba.com"
-    "a1c7ohabl.accounts.ondemand.com"
-    "flpnwc-ojffapwnic.dispatcher.ae1.hana.ondemand.com"
-    "*.docusign.com"
-    "access.clarivate.com"
-  ];
-
-  ssrcUrls = [
-    "*.cachix.org"
-    "vedenemo.dev"
-    "loki.ghaflogs.vedenemo.dev"
-    "ghaflogs.vedenemo.dev"
-    "himalia.vedenemo.dev"
-  ];
-
-  extraMsUrls = [
-    #ms366
-    "graph.microsoft.com"
-    "ocws.officeapps.live.com"
-    "microsoft365.com"
-    "*.azureedge.net" # microsoft365 icons
-    "consentreceiverfd-prod.azurefd.net" # ms365 cookies
-    "c.s-microsoft.com"
-    "js.monitor.azure.com"
-    "ocws.officeapps.live.com"
-    "northcentralus0-mediap.svc.ms"
-    "*.bing.com"
-    "cdnjs.cloudfare.com"
-    "store-images.s-microsoft.com"
-    "www.office.com"
-    "res-1.cdn.office.net"
-    "secure.skypeassets.com"
-    "js.live.net"
-    "skyapi.onedrive.live.com"
-    "am3pap006files.storage.live.com"
-    "c7rr5q.am.files.1drv.com"
-    #teams
-    "teams.live.com"
-    "*.teams.live.com"
-    "fpt.live.com" # teams related
-    "statics.teams.cdn.live.net"
-    "ipv6.login.live.com"
-    #outlook
-    "outlook.live.com" # outlook login
-    "csp.microsoft.com"
-    "arc.msn.com"
-    "www.msn.com"
-    "outlook.com"
-    #https://learn.microsoft.com/en-us/microsoft-365/enterprise/managing-office-365-endpoints?view=o365-worldwide#why-do-i-see-names-such-as-nsatcnet-or-akadnsnet-in-the-microsoft-domain-names
-    "*.akadns.net"
-    "*.akam.net"
-    "*.akamai.com"
-    "*.akamai.net"
-    "*.akamaiedge.net"
-    "*.akamaihd.net"
-    "*.akamaized.net"
-    "*.edgekey.net"
-    "*.edgesuite.net"
-    "*.nsatc.net"
-    "*.exacttarget.com"
-    #onedrive
-    "1drv.ms"
-    "onedrive.live.com"
-    "p.sfx.ms"
-    "my.microsoftpersonalcontent.com"
-    "*.onedrive.com"
-    "cdn.onenote.net"
-    "wvcyna.db.files.1drv.com"
-    "*.storage.live.com"
-  ];
-  # Concatenate the lists and join with commas
-  concatenatedUrls = builtins.concatStringsSep "," (tiiUrls ++ ssrcUrls ++ extraMsUrls);
 
   config_file_content = ''
     # log to stdout
@@ -136,25 +58,27 @@ let
     #private addresses
     deny * * 0.0.0.0/8,127.0.0.0/8,10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16,::,::1,fc00::/7
 
-    allow * * ${concatenatedUrls} *
     #include dynamic whitelist ips
-    include "${proxyWritableAllowListPath}"
+    include "/etc/${msAllowFilePath}"
+    include "/etc/${ghafAllowFilePath}"
 
     deny * * * *
     maxconn 200
 
-    proxy -i${netvmAddr} -p${toString cfg.bindPort}
+    proxy -i${cfg.internalAddress} -p${toString cfg.bindPort}
 
     flush
 
   '';
-
-  netvmEntry = builtins.filter (x: x.name == "net-vm") config.ghaf.networking.hosts.entries;
-  netvmAddr = lib.head (builtins.map (x: x.ip) netvmEntry);
 in
 {
   options.ghaf.reference.services.proxy-server = {
     enable = mkEnableOption "Enable proxy server module";
+    internalAddress = lib.mkOption {
+      type = lib.types.str;
+      default = config.ghaf.networking.hosts."net-vm".ipv4;
+      description = "Internal address for proxy server";
+    };
     bindPort = lib.mkOption {
       type = lib.types.int;
       default = 3128;
@@ -163,9 +87,8 @@ in
   };
 
   config = mkIf cfg.enable {
-    assertions =
-      [
-      ];
+    assertions = [
+    ];
     # Define a new group for proxy management
     users.groups.${proxyGroupName} = { }; # Create a group named proxy-admin
 
@@ -173,25 +96,18 @@ in
     users.users.${proxyUserName} = {
       isSystemUser = true;
       description = "Proxy User for managing allowlist and services";
-      # extraGroups = [ "${proxyGroupName}" ]; # Adding to 'proxy-admin' for specific access     
+      # extraGroups = [ "${proxyGroupName}" ]; # Adding to 'proxy-admin' for specific access
       group = "${proxyGroupName}";
     };
 
-    # Set up the permissions for allowlist.txt
-    environment.etc."${proxyAllowListName}" = {
-      text = '''';
-      user = "${proxyUserName}"; # Owner is proxy-user
-      group = "${proxyGroupName}"; # Group is proxy-admin
-      mode = "0660"; # Permissions: read/write for owner/group, no permissions for others
-    };
-
+    # Apply the configurations for each allow list path
     # Allow proxy-admin group to manage specific systemd services without a password
     security = {
       polkit = {
         enable = true;
         debug = true;
-        # Polkit rules for allowing proxy-user to run proxy related systemctl 
-        # commands without sudo and password requirement 
+        # Polkit rules for allowing proxy-user to run proxy related systemctl
+        # commands without sudo and password requirement
         extraConfig = ''
           polkit.addRule(function(action, subject) {
               if ((action.id == "org.freedesktop.systemd1.manage-units" &&
@@ -207,7 +123,7 @@ in
 
     };
 
-    environment.systemPackages = [ ms-url-fetcher ];
+    environment.systemPackages = [ url-fetcher ];
     #Firewall Settings
     networking = {
       firewall.enable = true;
@@ -217,32 +133,81 @@ in
         iptables -I INPUT -p udp -s 192.168.100.0/24 --dport ${toString cfg.bindPort} -j ACCEPT
       '';
     };
+
+    # Apply the allowListConfig generated from the list
+    systemd = {
+      tmpfiles.rules = builtins.map (
+        path: "f /etc/${path} 0660 ${proxyUserName} ${proxyGroupName} - -"
+      ) allowListPaths;
+
+      # systemd service for fetching the file
+      services.msFetchUrl = {
+        description = "Fetch microsoft URLs periodically with retries if internet is available";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        wantedBy = [ "multi-user.target" ];
+
+        serviceConfig = {
+          ExecStart = "${url-fetcher}/bin/url-fetcher -u ${msUrls} -p /etc/${msAllowFilePath}";
+          # Ensure msFetchUrl starts after the network is up
+          Type = "simple";
+          # Retry until systemctl restart 3proxy succeeds
+          ExecStartPost = "${_3proxy-restart}/bin/3proxy-restart";
+          # Restart policy on failure
+          Restart = "on-failure"; # Restart the service if it fails
+          RestartSec = "10s"; # Wait 10 seconds before restarting
+          User = "${proxyUserName}";
+          Group = "${proxyGroupName}";
+
+        };
+      };
+
+      # systemd timer to trigger the service every 10 minutes
+      timers.msFetchUrl = {
+        description = "Run msFetchUrl periodically";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          User = "${proxyUserName}";
+          Persistent = true; # Ensures the timer runs after a system reboot
+          OnCalendar = "hourly"; # Set to your desired schedule
+          OnBootSec = "60s";
+        };
+      };
+    };
+
     # systemd service for fetching the file
-    systemd.services.fetchFile = {
-      description = "Fetch a file periodically with retries if internet is available";
+    systemd.services.ghafFetchUrl = {
+      description = "Fetch ghaf related URLs periodically with retries if internet is available";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${ms-url-fetcher}/bin/ms-url-fetch";
-        # Ensure fetchFile starts after the network is up
+        ExecStart = "${url-fetcher}/bin/url-fetcher -f ${ghafUrls} -p /etc/${ghafAllowFilePath}";
+        # Ensure ghafFetchUrl starts after the network is up
         Type = "simple";
         # Retry until systemctl restart 3proxy succeeds
         ExecStartPost = "${_3proxy-restart}/bin/3proxy-restart";
         # Restart policy on failure
         Restart = "on-failure"; # Restart the service if it fails
-        RestartSec = "10s"; # Wait 10 seconds before restarting
+        RestartSec = "15s"; # Wait 15 seconds before restarting
         User = "${proxyUserName}";
+        Group = "${proxyGroupName}";
+
       };
     };
 
     # systemd timer to trigger the service every 10 minutes
-    systemd.timers.fetchFile = {
-      description = "Run fetch-file periodically";
+    systemd.timers.ghafFetchUrl = {
+      description = "Run ghafFetchUrl periodically";
       wantedBy = [ "timers.target" ];
       timerConfig = {
         User = "${proxyUserName}";
+        Group = "${proxyGroupName}";
+
         Persistent = true; # Ensures the timer runs after a system reboot
         OnCalendar = "hourly"; # Set to your desired schedule
-        OnBootSec = "60s";
+        OnBootSec = "90s";
       };
     };
 
@@ -258,37 +223,6 @@ in
       confFile = pkgs.writeText "3proxy.conf" ''
         ${config_file_content}
       '';
-
-      /*
-        NOTE allow and deny configurations should must be placed before the other configs
-        it is not possible to do with extraConfig. Because it appends the file
-      */
-      /*
-            services = [
-              {
-                type = "proxy";
-                bindAddress = "${netvmAddr}";
-                inherit (cfg) bindPort;
-                maxConnections = 200;
-                auth = [ "iponly" ];
-                acl = [
-                  {
-                    rule = "allow";
-                    targets = tiiUrls;
-                  }
-                  {
-                    rule = "allow";
-                    targets = ssrcUrls;
-                  }
-                   {
-                    rule = "allow";
-                    targets = extraMsUrls;
-                  }
-                  { rule = "deny"; }
-                ];
-              }
-            ];
-      */
     };
 
   };

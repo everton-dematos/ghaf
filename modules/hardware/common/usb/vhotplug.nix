@@ -59,12 +59,9 @@ let
       qmpSocket = "/var/lib/microvms/net-vm/net-vm.sock";
       usbPassthrough = [
         {
-          # Currently disabled to avoid breaking remote nixos-rebuild,
-          # which requires an Ethernet adapter connected to the host
           class = 2;
           sublass = 6;
           description = "Communications - Ethernet Networking";
-          disable = true;
         }
       ];
     }
@@ -96,6 +93,13 @@ let
               # UAE #2 SKU
               vendorId = "30c9";
               productId = "0052";
+              description = "Lenovo X1 Integrated Camera";
+            }
+            {
+              # Ignore Lenovo X1 gen 12 camera since it is attached to the business-vm
+              # Finland SKU
+              vendorId = "30c9";
+              productId = "005f";
               description = "Lenovo X1 Integrated Camera";
             }
           ];

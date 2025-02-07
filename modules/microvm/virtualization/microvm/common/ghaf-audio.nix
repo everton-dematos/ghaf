@@ -29,7 +29,7 @@ in
 
   config = lib.mkIf cfg.enable {
     security.rtkit.enable = cfg.useTunneling;
-    users.extraUsers.ghaf.extraGroups = lib.mkIf cfg.useTunneling [
+    ghaf.users.appUser.extraGroups = lib.mkIf cfg.useTunneling [
       "audio"
       "video"
     ];
@@ -44,7 +44,7 @@ in
 
     environment = lib.mkIf (!cfg.useTunneling) {
       systemPackages = [ pkgs.pulseaudio ];
-      sessionVariables = rec {
+      sessionVariables = {
         PULSE_SERVER = "${address}";
       };
     };

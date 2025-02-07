@@ -88,6 +88,9 @@ let
 
               host.networking.enable = true;
 
+              # Create admin home folder; temporary solution
+              users.admin.createHome = true;
+
               # Enable all the default UI applications
               profiles = {
                 applications.enable = true;
@@ -102,12 +105,14 @@ let
               graphics.labwc.autolock.enable = false;
             };
 
-            #TODO: move to a central place for all platforms
-            nixpkgs.config = {
-              allowUnfree = true;
-              permittedInsecurePackages = [
-                "jitsi-meet-1.0.8043"
-              ];
+            nixpkgs = {
+              #TODO: move to a central place for all platforms
+              config = {
+                allowUnfree = true;
+                permittedInsecurePackages = [
+                  "jitsi-meet-1.0.8043"
+                ];
+              };
             };
           }
 
@@ -124,6 +129,19 @@ let
   nvidia-jetson-orin-agx-release = nvidia-jetson-orin "agx" "release" [ ];
   nvidia-jetson-orin-nx-debug = nvidia-jetson-orin "nx" "debug" [ ];
   nvidia-jetson-orin-nx-release = nvidia-jetson-orin "nx" "release" [ ];
+
+  mkHostImage =
+    eval:
+    let
+      pkg = eval.config.system.build.${eval.config.formatAttr};
+    in
+    pkg
+    // {
+      passthru = pkg.passthru or { } // {
+        inherit eval;
+      };
+    };
+
   generate-nodemoapps =
     tgt:
     tgt
@@ -132,7 +150,7 @@ let
       hostConfiguration = tgt.hostConfiguration.extendModules {
         modules = [ { ghaf.graphics.enableDemoApplications = lib.mkForce false; } ];
       };
-      package = hostConfiguration.config.system.build.${hostConfiguration.config.formatAttr};
+      package = mkHostImage hostConfiguration;
     };
   generate-cross-from-x86_64 =
     tgt:
@@ -140,7 +158,7 @@ let
     // rec {
       name = tgt.name + "-from-x86_64";
       hostConfiguration = tgt.hostConfiguration.extendModules { modules = [ ./cross-compilation.nix ]; };
-      package = hostConfiguration.config.system.build.${hostConfiguration.config.formatAttr};
+      package = mkHostImage hostConfiguration;
     };
   # Base targets to use for generating demoapps and cross-compilation targets
   baseTargets = [
@@ -155,24 +173,18 @@ let
   mkFlashScript = import ../../lib/mk-flash-script;
   # Generate flash script variant which flashes both QSPI and eMMC
   generate-flash-script =
-    tgt: flash-tools-system:
+    tgt: _flash-tools-system:
     mkFlashScript {
-      inherit nixpkgs;
       inherit (tgt) hostConfiguration;
-      inherit jetpack-nixos;
-      inherit flash-tools-system;
     };
   # Generate flash script variant which flashes QSPI only. Useful for Orin NX
   # and non-eMMC based development.
   generate-flash-qspi =
-    tgt: flash-tools-system:
+    tgt: _flash-tools-system:
     mkFlashScript {
-      inherit nixpkgs;
       hostConfiguration = tgt.hostConfiguration.extendModules {
         modules = [ { ghaf.hardware.nvidia.orin.flashScriptOverrides.onlyQSPI = true; } ];
       };
-      inherit jetpack-nixos;
-      inherit flash-tools-system;
     };
 in
 {

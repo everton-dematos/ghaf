@@ -7,24 +7,31 @@
   ...
 }:
 let
-  inherit (builtins) hasAttr;
   inherit (lib)
     mkOption
     types
     optionals
     optionalAttrs
+    hasAttrByPath
     ;
 
   cfg = config.ghaf.virtualization.microvm;
 
+  # Host configuration; for clarity
+  configHost = config;
+
   # Currently only x86 with hw definition supported
   inherit (pkgs.stdenv.hostPlatform) isx86;
   fullVirtualization =
-    isx86 && (hasAttr "hardware" config.ghaf) && (hasAttr "devices" config.ghaf.hardware);
+    isx86
+    && (hasAttrByPath [
+      "hardware"
+      "devices"
+    ] config.ghaf);
 
   # Hardware devices passthrough modules
   deviceModules = optionalAttrs fullVirtualization {
-    inherit (config.ghaf.hardware.devices)
+    inherit (configHost.ghaf.hardware.devices)
       netvmPCIPassthroughModule
       audiovmPCIPassthroughModule
       guivmPCIPassthroughModule
@@ -33,7 +40,9 @@ let
   };
 
   # Kernel configurations
-  kernelConfigs = optionalAttrs fullVirtualization { inherit (config.ghaf.kernel) guivm audiovm; };
+  kernelConfigs = optionalAttrs fullVirtualization {
+    inherit (configHost.ghaf.kernel) guivm audiovm;
+  };
 
   # Firmware module
   firmwareModule = {
@@ -42,15 +51,25 @@ let
 
   # Qemu configuration modules
   qemuModules = {
-    inherit (config.ghaf.qemu) guivm;
-    inherit (config.ghaf.qemu) audiovm;
+    inherit (configHost.ghaf.qemu) guivm;
+    inherit (configHost.ghaf.qemu) audiovm;
+  };
+
+  # Common namespace to pass parameters at built-time from host to VMs
+  commonModule = {
+    config.ghaf = {
+      inherit (configHost.ghaf) common;
+    };
   };
 
   # Service modules
   serviceModules = {
     # Givc module
     givc = {
-      config.ghaf.givc.enable = config.ghaf.givc.enable;
+      config.ghaf.givc = {
+        inherit (configHost.ghaf.givc) enable;
+        inherit (configHost.ghaf.givc) debug;
+      };
     };
 
     # Audio module
@@ -65,11 +84,6 @@ let
     # Fprint module
     fprint = optionalAttrs cfg.guivm.fprint { config.ghaf.services.fprint.enable = true; };
 
-    # Desktop module
-    desktop = {
-      config.ghaf.services.desktop.enable = true;
-    };
-
     # XDG opener
     xdgOpener = {
       config.ghaf.services.xdgopener.enable = true;
@@ -77,29 +91,44 @@ let
 
     # Yubikey module
     yubikey = optionalAttrs cfg.guivm.yubikey { config.ghaf.services.yubikey.enable = true; };
+  };
 
-    # Common namespace to share (built-time) between host and VMs
-    commonNamespace = {
-      config.ghaf.namespaces = config.ghaf.namespaces;
+  # User account settings
+  managedUserAccounts = {
+    config.ghaf.users = {
+      inherit (configHost.ghaf.users) admin;
+      inherit (configHost.ghaf.users) managed;
     };
   };
 
   # Reference services module
   referenceServiceModule = {
-    config.ghaf = optionalAttrs (hasAttr "reference" config.ghaf) {
-      reference = optionalAttrs (hasAttr "services" config.ghaf.reference) {
-        inherit (config.ghaf.reference) services;
-      };
-    };
+    config.ghaf =
+      optionalAttrs
+        (hasAttrByPath [
+          "reference"
+          "services"
+        ] config.ghaf)
+        {
+          reference = {
+            inherit (configHost.ghaf.reference) services;
+          };
+        };
   };
 
   # Reference programs module
   referenceProgramsModule = {
-    config.ghaf = optionalAttrs (hasAttr "reference" config.ghaf) {
-      reference = optionalAttrs (hasAttr "programs" config.ghaf.reference) {
-        inherit (config.ghaf.reference) programs;
-      };
-    };
+    config.ghaf =
+      optionalAttrs
+        (hasAttrByPath [
+          "reference"
+          "programs"
+        ] config.ghaf)
+        {
+          reference = {
+            inherit (configHost.ghaf.reference) programs;
+          };
+        };
   };
 in
 {
@@ -144,6 +173,8 @@ in
         serviceModules.wifi
         serviceModules.givc
         referenceServiceModule
+        managedUserAccounts
+        commonModule
       ];
       # Audiovm modules
       audiovm.extraModules = optionals cfg.audiovm.enable [
@@ -154,6 +185,8 @@ in
         serviceModules.audio
         serviceModules.givc
         serviceModules.bluetooth
+        managedUserAccounts
+        commonModule
       ];
       # Guivm modules
       guivm.extraModules = optionals cfg.guivm.enable [
@@ -162,16 +195,24 @@ in
         kernelConfigs.guivm
         firmwareModule
         qemuModules.guivm
-        serviceModules.desktop
         serviceModules.fprint
         serviceModules.yubikey
         serviceModules.xdgOpener
-        serviceModules.commonNamespace
         serviceModules.givc
         referenceProgramsModule
+        managedUserAccounts
+        commonModule
       ];
-      adminvm.extraModules = optionals cfg.adminvm.enable [ serviceModules.givc ];
-      appvm.extraModules = optionals cfg.appvm.enable [ serviceModules.givc ];
+      adminvm.extraModules = optionals cfg.adminvm.enable [
+        serviceModules.givc
+        managedUserAccounts
+        commonModule
+      ];
+      appvm.extraModules = optionals cfg.appvm.enable [
+        serviceModules.givc
+        managedUserAccounts
+        commonModule
+      ];
     };
   };
 }

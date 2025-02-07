@@ -1,11 +1,14 @@
 # Copyright 2022-2024 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
 { inputs }:
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  ...
+}:
 let
   configHost = config;
   vmName = "admin-vm";
-  macAddress = "02:00:00:AD:01:01";
   isLoggingEnabled = config.ghaf.logging.client.enable;
 
   adminvmBaseConfiguration = {
@@ -17,9 +20,7 @@ let
           config
           lib
           vmName
-          macAddress
           ;
-        internalIP = 10;
       })
       # We need to retrieve mac address and start log aggregator
       ../../../common/logging/hw-mac-retrieve.nix
@@ -29,7 +30,7 @@ let
         { lib, ... }:
         {
           ghaf = {
-            users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
+            # Profiles
             profiles.debug.enable = lib.mkDefault configHost.ghaf.profiles.debug.enable;
             development = {
               # NOTE: SSH port also becomes accessible on the network interface
@@ -38,6 +39,9 @@ let
               debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
               nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
             };
+
+            # System
+            type = "system-vm";
             systemd = {
               enable = true;
               withName = "adminvm-systemd";
@@ -49,18 +53,19 @@ let
               withDebug = configHost.ghaf.profiles.debug.enable;
               withHardenedConfigs = true;
             };
+            givc.adminvm.enable = true;
+
+            # Storage
             storagevm = {
               enable = true;
-              name = "adminvm";
+              name = vmName;
               files = [
                 "/etc/locale-givc.conf"
                 "/etc/timezone.conf"
               ];
             };
 
-            givc.adminvm.enable = true;
-
-            # Log aggregation configuration
+            # Services
             logging = {
               client.enable = isLoggingEnabled;
               listener = {
@@ -72,14 +77,6 @@ let
           };
 
           system.stateVersion = lib.trivial.release;
-
-          systemd.network = {
-            enable = true;
-            networks."10-ethint0" = {
-              matchConfig.MACAddress = macAddress;
-              linkConfig.ActivationPolicy = "always-up";
-            };
-          };
 
           nixpkgs = {
             buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
@@ -141,6 +138,7 @@ in
   config = lib.mkIf cfg.enable {
     microvm.vms."${vmName}" = {
       autostart = true;
+      inherit (inputs) nixpkgs;
       config = adminvmBaseConfiguration // {
         imports = adminvmBaseConfiguration.imports ++ cfg.extraModules;
       };

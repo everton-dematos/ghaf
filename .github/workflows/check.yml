@@ -4,6 +4,9 @@
 
 name: check
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -20,9 +23,7 @@ jobs:
       - name: Check reuse lint
         run: nix develop --command reuse lint
       - name: Check nix flake show runs successfully
-        run: nix flake show
-      - name: evaluation check
-        run: nix develop --command make-checks
+        run: nix flake show --all-systems
       - name: Check templates
         run: |
           set -eux -o pipefail

@@ -16,6 +16,7 @@ let
     mkIf
     mkForce
     types
+    optionalAttrs
     ;
 
   # Override minimal systemd package configuration
@@ -29,10 +30,12 @@ let
         inherit (cfg) withAudit;
         withCompression = true;
         withCoredump = cfg.withDebug || cfg.withMachines;
-        inherit (cfg) withCryptsetup;
+        withCryptsetup = cfg.withCryptsetup || cfg.withHomed;
+        withOpenSSL = cfg.withFido2 || cfg.withHomed;
         inherit (cfg) withEfi;
         inherit (cfg) withBootloader;
         inherit (cfg) withFido2;
+        inherit (cfg) withHomed;
         inherit (cfg) withHostnamed;
         withImportd = cfg.withMachines;
         withKexectools = cfg.withDebug;
@@ -54,6 +57,7 @@ let
         inherit (cfg) withTimesyncd;
         inherit (cfg) withTpm2Tss;
         inherit (cfg) withUkify;
+        withUserDb = cfg.withHomed;
         withUtmp = cfg.withJournal || cfg.withAudit;
       }
       // lib.optionalAttrs (lib.strings.versionAtLeast pkgs.systemdMinimal.version "255.0") {
@@ -150,6 +154,12 @@ let
       "systemd-networkd.service"
       "systemd-networkd.socket"
     ])
+    ++ (lib.optionals (!cfg.withAudio) [
+      "sound.target"
+    ])
+    ++ (lib.optionals (!cfg.withBluetooth) [
+      "bluetooth.target"
+    ])
     ++ (lib.optionals (!cfg.withDebug) [
       ## Units kept with debug
       "kbrequest.target"
@@ -219,6 +229,12 @@ in
 
     withRepart = mkOption {
       description = "Enable systemd repart functionality.";
+      type = types.bool;
+      default = false;
+    };
+
+    withHomed = mkOption {
+      description = "Enable systemd homed for users home functionality.";
       type = types.bool;
       default = false;
     };
@@ -307,10 +323,40 @@ in
       default = false;
     };
 
+    withAudio = mkOption {
+      description = "Enable audio functionality.";
+      type = types.bool;
+      default = false;
+    };
+
+    withBluetooth = mkOption {
+      description = "Enable bluetooth functionality.";
+      type = types.bool;
+      default = false;
+    };
+
     withDebug = mkOption {
       description = "Enable systemd debug functionality.";
       type = types.bool;
       default = false;
+    };
+
+    logLevel = mkOption {
+      description = ''
+        Systemd log verbosity. Must be one of 'debug', 'info', 'notice', 'warning', 'err',
+        'crit', 'alert', 'emerg'. Defaults to 'info'.
+      '';
+      type = types.enum [
+        "debug"
+        "info"
+        "notice"
+        "warning"
+        "err"
+        "crit"
+        "alert"
+        "emerg"
+      ];
+      default = "info";
     };
   };
 
@@ -324,6 +370,8 @@ in
       # Misc. configurations
       enableEmergencyMode = cfg.withDebug;
       coredump.enable = cfg.withDebug || cfg.withMachines;
+      managerEnvironment.SYSTEMD_LOG_LEVEL = cfg.logLevel;
+      globalEnvironment.SYSTEMD_LOG_LEVEL = cfg.logLevel;
 
       # Service startup optimization
       services.systemd-networkd-wait-online.enable = mkForce false;

@@ -20,7 +20,6 @@ let
         # TODO this hides the other modules (e.g. microvm.nix)
         # But they are stilled passed as options modules ???
         if lib.strings.hasPrefix "ghaf" x.name then x else x // { visible = false; };
-      markdownByDefault = true;
     }).optionsCommonMark;
   combinedSrc = runCommandLocal "ghaf-doc-src" { } ''
     mkdir $out
@@ -44,10 +43,8 @@ runCommandLocal "ghaf-doc"
     # set the package Meta info
     meta = {
       description = "Ghaf Documentation";
-      # TODO should we Only push docs from one Architecture?
       platforms = [
         "x86_64-linux"
-        "aarch64-linux"
       ];
     };
   }

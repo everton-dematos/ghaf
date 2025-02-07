@@ -9,7 +9,6 @@
 }:
 let
   vmName = "gui-vm";
-  macAddress = "02:00:00:02:02:02";
   inherit (import ../../../../lib/launcher.nix { inherit pkgs lib; }) rmDesktopEntries;
   guivmBaseConfiguration = {
     imports = [
@@ -20,9 +19,7 @@ let
           config
           lib
           vmName
-          macAddress
           ;
-        internalIP = 3;
       })
 
       ./common/storagevm.nix
@@ -32,45 +29,56 @@ let
       (
         { lib, pkgs, ... }:
         let
-          inherit (builtins) replaceStrings;
-          cliArgs = replaceStrings [ "\n" ] [ " " ] ''
-            --name ${config.ghaf.givc.adminConfig.name}
-            --addr ${config.ghaf.givc.adminConfig.addr}
-            --port ${config.ghaf.givc.adminConfig.port}
-            ${lib.optionalString config.ghaf.givc.enableTls "--cacert /run/givc/ca-cert.pem"}
-            ${lib.optionalString config.ghaf.givc.enableTls "--cert /run/givc/ghaf-host-cert.pem"}
-            ${lib.optionalString config.ghaf.givc.enableTls "--key /run/givc/ghaf-host-key.pem"}
-            ${lib.optionalString (!config.ghaf.givc.enableTls) "--notls"}
-          '';
+          # A list of applications from all AppVMs
+          virtualApps = lib.lists.concatMap (
+            vm: map (app: app // { vmName = "${vm.name}-vm"; }) vm.applications
+          ) config.ghaf.virtualization.microvm.appvm.vms;
+
+          # Launchers for all virtualized applications that run in AppVMs
+          virtualLaunchers = map (app: rec {
+            inherit (app) name;
+            inherit (app) description;
+            #inherit (app) givcName;
+            vm = app.vmName;
+            path = "${pkgs.givc-cli}/bin/givc-cli ${config.ghaf.givc.cliArgs} start --vm ${vm} ${app.givcName}";
+            inherit (app) icon;
+          }) virtualApps;
+          # Launchers for all desktop, non-virtualized applications that run in the GUIVM
+          guivmLaunchers = map (app: {
+            inherit (app) name;
+            inherit (app) description;
+            path = app.command;
+            inherit (app) icon;
+          }) cfg.applications;
         in
         {
+          imports = [
+            ../../../common
+            ../../../desktop
+            ../../../reference/services
+          ];
+
           ghaf = {
-            users.accounts.enable = lib.mkDefault config.ghaf.users.accounts.enable;
+            # Profiles
             profiles = {
               debug.enable = lib.mkDefault config.ghaf.profiles.debug.enable;
               applications.enable = false;
               graphics.enable = true;
             };
-
-            # To enable screen locking set to true
-            graphics.labwc = {
-              autolock.enable = lib.mkDefault config.ghaf.graphics.labwc.autolock.enable;
-              autologinUser = lib.mkDefault config.ghaf.graphics.labwc.autologinUser;
-              securityContext = map (vm: {
-                identifier = vm.name;
-                color = vm.borderColor;
-              }) config.ghaf.virtualization.microvm.appvm.vms;
-            };
-
+            users.loginUser.enable = true;
             development = {
               ssh.daemon.enable = lib.mkDefault config.ghaf.development.ssh.daemon.enable;
               debug.tools.enable = lib.mkDefault config.ghaf.development.debug.tools.enable;
               nix-setup.enable = lib.mkDefault config.ghaf.development.nix-setup.enable;
             };
+
+            # System
+            type = "system-vm";
             systemd = {
               enable = true;
               withName = "guivm-systemd";
               withAudit = config.ghaf.profiles.debug.enable;
+              withHomed = true;
               withLocaled = true;
               withNss = true;
               withResolved = true;
@@ -78,88 +86,130 @@ let
               withDebug = config.ghaf.profiles.debug.enable;
               withHardenedConfigs = true;
             };
+
             givc.guivm.enable = true;
-            # Logging client configuration
-            logging.client.enable = config.ghaf.logging.client.enable;
-            logging.client.endpoint = config.ghaf.logging.client.endpoint;
+
+            # Storage
             storagevm = {
               enable = true;
-              name = "guivm";
-              directories = [
-                {
-                  directory = "/var/lib/private/ollama";
-                  inherit (config.ghaf.users.accounts) user;
-                  group = "ollama";
-                  mode = "u=rwx,g=,o=";
-                }
-              ];
-              users.${config.ghaf.users.accounts.user}.directories = [
-                ".cache"
-                ".config"
-                ".local"
-                "Pictures"
-                "Videos"
-              ];
+              name = vmName;
             };
-            services.disks.enable = true;
-            services.disks.fileManager = "${pkgs.pcmanfm}/bin/pcmanfm";
-            services.xdghandlers.enable = true;
-          };
 
-          services.acpid = lib.mkIf config.ghaf.givc.enable {
-            enable = true;
-            lidEventCommands = ''
-              case "$1" in
-                "button/lid LID close")
-                  # Lock sessions
-                  ${pkgs.systemd}/bin/loginctl lock-sessions
+            # Services
 
-                  # Switch off display, if wayland is running
-                  if ${pkgs.procps}/bin/pgrep -fl "wayland" > /dev/null; then
-                    wl_running=1
-                    WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.accounts.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
-                  else
-                    wl_running=0
-                  fi
-
-                  # Initiate Suspension
-                  ${pkgs.givc-cli}/bin/givc-cli ${cliArgs} suspend
-
-                  # Enable display
-                  if [ "$wl_running" -eq 1 ]; then
-                    WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.accounts.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
-                  fi
-                  ;;
-                "button/lid LID open")
-                  # Command to run when the lid is opened
-                  ;;
-              esac
-            '';
-          };
-
-          systemd.services."waypipe-ssh-keygen" =
-            let
-              keygenScript = pkgs.writeShellScriptBin "waypipe-ssh-keygen" ''
-                set -xeuo pipefail
-                mkdir -p /run/waypipe-ssh
-                echo -en "\n\n\n" | ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -f /run/waypipe-ssh/id_ed25519 -C ""
-                chown ghaf:ghaf /run/waypipe-ssh/*
-                cp /run/waypipe-ssh/id_ed25519.pub /run/waypipe-ssh-public-key/id_ed25519.pub
-              '';
-            in
-            {
-              enable = true;
-              description = "Generate SSH keys for Waypipe";
-              path = [ keygenScript ];
-              wantedBy = [ "multi-user.target" ];
-              serviceConfig = {
-                Type = "oneshot";
-                RemainAfterExit = true;
-                StandardOutput = "journal";
-                StandardError = "journal";
-                ExecStart = "${keygenScript}/bin/waypipe-ssh-keygen";
+            # Create launchers for regular apps running in the GUIVM and virtualized ones if GIVC is enabled
+            graphics = {
+              launchers = guivmLaunchers ++ lib.optionals config.ghaf.givc.enable virtualLaunchers;
+              labwc = {
+                autolock.enable = lib.mkDefault config.ghaf.graphics.labwc.autolock.enable;
+                autologinUser = lib.mkDefault config.ghaf.graphics.labwc.autologinUser;
+                securityContext = map (vm: {
+                  identifier = vm.name;
+                  color = vm.borderColor;
+                }) config.ghaf.virtualization.microvm.appvm.vms;
               };
             };
+
+            logging.client = {
+              inherit (config.ghaf.logging.client) enable endpoint;
+            };
+
+            services = {
+              disks = {
+                enable = true;
+                fileManager = "${pkgs.pcmanfm}/bin/pcmanfm";
+              };
+              xdghandlers.enable = true;
+            };
+
+            reference.services.ollama = true;
+          };
+
+          services = {
+            acpid = lib.mkIf config.ghaf.givc.enable {
+              enable = true;
+              lidEventCommands = ''
+                case "$1" in
+                  "button/lid LID close")
+                    # Lock sessions
+                    ${pkgs.systemd}/bin/loginctl lock-sessions
+
+                    # Switch off display, if wayland is running
+                    if ${pkgs.procps}/bin/pgrep -fl "wayland" > /dev/null; then
+                      wl_running=1
+                      WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.loginUser.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --off '*'
+                    else
+                      wl_running=0
+                    fi
+
+                    # Initiate Suspension
+                    ${pkgs.givc-cli}/bin/givc-cli ${config.ghaf.givc.cliArgs} suspend
+
+                    # Enable display
+                    if [ "$wl_running" -eq 1 ]; then
+                      WAYLAND_DISPLAY=/run/user/${builtins.toString config.ghaf.users.loginUser.uid}/wayland-0 ${pkgs.wlopm}/bin/wlopm --on '*'
+                    fi
+                    ;;
+                  "button/lid LID open")
+                    # Command to run when the lid is opened
+                    ;;
+                esac
+              '';
+            };
+
+            # Suspend inside Qemu causes segfault
+            # See: https://gitlab.com/qemu-project/qemu/-/issues/2321
+            logind.lidSwitch = "ignore";
+
+            # We dont enable services.blueman because it adds blueman desktop entry
+            dbus.packages = [ pkgs.blueman ];
+          };
+
+          systemd = {
+            packages = [ pkgs.blueman ];
+
+            user.services.audio-control = {
+              enable = true;
+              description = "Audio Control application";
+
+              serviceConfig = {
+                Type = "simple";
+                Restart = "always";
+                RestartSec = "5";
+                ExecStart = "${pkgs.ghaf-audio-control}/bin/GhafAudioControlStandalone --pulseaudio_server=audio-vm:${toString config.ghaf.services.audio.pulseaudioTcpControlPort} --deamon_mode=true --indicator_icon_name=preferences-sound";
+              };
+
+              partOf = [ "ghaf-session.target" ];
+              wantedBy = [ "ghaf-session.target" ];
+            };
+
+            services."waypipe-ssh-keygen" =
+              let
+                uid = "${toString config.ghaf.users.loginUser.uid}";
+                pubDir = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
+                keygenScript = pkgs.writeShellScriptBin "waypipe-ssh-keygen" ''
+                  set -xeuo pipefail
+                  mkdir -p /run/waypipe-ssh
+                  echo -en "\n\n\n" | ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -f /run/waypipe-ssh/id_ed25519 -C ""
+                  chown ${uid}:users /run/waypipe-ssh/*
+                  cp /run/waypipe-ssh/id_ed25519.pub ${pubDir}/id_ed25519.pub
+                  chown -R ${uid}:users ${pubDir}
+                '';
+              in
+              {
+                enable = true;
+                description = "Generate SSH keys for Waypipe";
+                path = [ keygenScript ];
+                wantedBy = [ "multi-user.target" ];
+                serviceConfig = {
+                  Type = "oneshot";
+                  RemainAfterExit = true;
+                  StandardOutput = "journal";
+                  StandardError = "journal";
+                  ExecStart = "${keygenScript}/bin/waypipe-ssh-keygen";
+                };
+              };
+          };
 
           environment = {
             systemPackages =
@@ -185,10 +235,6 @@ let
                 pkgs.libva-utils
                 pkgs.glib
               ];
-            sessionVariables = {
-              XDG_PICTURES_DIR = "$HOME/Pictures";
-              XDG_VIDEOS_DIR = "$HOME/Videos";
-            };
           };
 
           time.timeZone = config.time.timeZone;
@@ -199,10 +245,6 @@ let
             hostPlatform.system = config.nixpkgs.hostPlatform.system;
           };
 
-          # Suspend inside Qemu causes segfault
-          # See: https://gitlab.com/qemu-project/qemu/-/issues/2321
-          services.logind.lidSwitch = "ignore";
-
           microvm = {
             optimize.enable = false;
             vcpu = 2;
@@ -210,7 +252,7 @@ let
             hypervisor = "qemu";
             shares = [
               {
-                tag = "rw-waypipe-ssh-public-key";
+                tag = "waypipe-ssh-public-key";
                 source = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
                 mountPoint = config.ghaf.security.sshKeys.waypipeSshPublicKeyDir;
                 proto = "virtiofs";
@@ -239,18 +281,6 @@ let
                 .${config.nixpkgs.hostPlatform.system};
             };
           };
-
-          imports = [
-            ../../../common
-            ../../../desktop
-            ../../../reference/services
-          ];
-
-          ghaf.reference.services.ollama = true;
-
-          # We dont enable services.blueman because it adds blueman desktop entry
-          services.dbus.packages = [ pkgs.blueman ];
-          systemd.packages = [ pkgs.blueman ];
         }
       )
     ];
@@ -288,11 +318,43 @@ in
         Context Identifier (CID) of the GUIVM VSOCK
       '';
     };
+
+    applications = lib.mkOption {
+      description = ''
+        Applications to include in the GUIVM
+      '';
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            name = lib.mkOption {
+              type = lib.types.str;
+              description = "The name of the application";
+            };
+            description = lib.mkOption {
+              type = lib.types.str;
+              description = "A brief description of the application";
+            };
+            icon = lib.mkOption {
+              type = lib.types.str;
+              description = "Application icon";
+              default = null;
+            };
+            command = lib.mkOption {
+              type = lib.types.str;
+              description = "The command to run the application";
+              default = null;
+            };
+          };
+        }
+      );
+      default = [ ];
+    };
   };
 
   config = lib.mkIf cfg.enable {
     microvm.vms."${vmName}" = {
       autostart = true;
+      inherit (inputs) nixpkgs;
       config = guivmBaseConfiguration // {
         boot.kernelPackages =
           if config.ghaf.guest.kernel.hardening.graphics.enable then
@@ -312,27 +374,5 @@ in
         imports = guivmBaseConfiguration.imports ++ cfg.extraModules;
       };
     };
-
-    # This directory needs to be created before any of the microvms start.
-    systemd.services."create-waypipe-ssh-public-key-directory" =
-      let
-        script = pkgs.writeShellScriptBin "create-waypipe-ssh-public-key-directory" ''
-          mkdir -pv ${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
-          chown -v microvm ${config.ghaf.security.sshKeys.waypipeSshPublicKeyDir}
-        '';
-      in
-      {
-        enable = true;
-        description = "Create shared directory on host";
-        path = [ ];
-        wantedBy = [ "microvms.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          StandardOutput = "journal";
-          StandardError = "journal";
-          ExecStart = "${script}/bin/create-waypipe-ssh-public-key-directory";
-        };
-      };
   };
 }

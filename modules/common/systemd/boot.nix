@@ -11,7 +11,12 @@ let
   cfg = config.ghaf.systemd.boot;
   cfgBase = config.ghaf.systemd;
 
-  inherit (lib) mkEnableOption mkIf optionals;
+  inherit (lib)
+    mkIf
+    optionals
+    mkOption
+    optionalAttrs
+    ;
 
   # Package configuration
   package = pkgs.systemdMinimal.override (
@@ -25,6 +30,7 @@ let
       inherit (cfgBase) withRepart;
       inherit (cfgBase) withTpm2Tss;
       inherit (cfgBase) withUkify;
+      withOpenSSL = cfgBase.withFido2;
     }
     // lib.optionalAttrs (lib.strings.versionAtLeast pkgs.systemdMinimal.version "255.0") {
       withQrencode = true; # Required for systemd-bsod, which is currently hardcoded in nixos
@@ -33,8 +39,7 @@ let
 
   # Suppressed initrd systemd units
   suppressedUnits =
-    [ "multi-user.target" ]
-    ++ (lib.optionals ((!cfgBase.withDebug) && (!cfgBase.withJournal)) [
+    (lib.optionals ((!cfgBase.withDebug) && (!cfgBase.withJournal)) [
       "systemd-journald.service"
       "systemd-journald.socket"
       "systemd-journald-dev-log.socket"
@@ -54,23 +59,26 @@ let
 in
 {
   options.ghaf.systemd.boot = {
-    enable = mkEnableOption "Enable systemd in stage 1 of the boot (initrd).";
+    enable = mkOption {
+      default = config.ghaf.systemd.enable;
+      description = "Enable systemd in stage 1 of the boot (initrd).";
+    };
   };
 
   config = mkIf cfg.enable {
     boot.initrd = {
-      verbose = config.ghaf.profiles.debug.enable;
       services.lvm.enable = true;
       systemd = {
         enable = true;
         inherit package;
         inherit suppressedUnits;
-        emergencyAccess = config.ghaf.profiles.debug.enable;
+        emergencyAccess = cfgBase.withDebug;
         tpm2.enable = cfgBase.withTpm2Tss;
-        initrdBin = optionals config.ghaf.profiles.debug.enable [
+        initrdBin = optionals cfgBase.withDebug [
           pkgs.lvm2
           pkgs.util-linux
         ];
+        managerEnvironment.SYSTEMD_LOG_LEVEL = cfgBase.logLevel;
       };
     };
   };

@@ -1,5 +1,6 @@
 # Copyright 2022-2023 TII (SSRC) and the Ghaf contributors
 # SPDX-License-Identifier: Apache-2.0
+{ inputs }:
 {
   config,
   lib,
@@ -9,23 +10,21 @@
 let
   configHost = config;
   vmName = "ids-vm";
-  macAddress = "02:00:00:01:01:02";
   idsvmBaseConfiguration = {
     imports = [
       (import ../common/vm-networking.nix {
         inherit
           config
           lib
+          pkgs
           vmName
-          macAddress
           ;
-        internalIP = 4;
       })
       (
         { lib, ... }:
         {
           ghaf = {
-            users.accounts.enable = lib.mkDefault configHost.ghaf.users.accounts.enable;
+            type = "system-vm";
             profiles.debug.enable = lib.mkDefault configHost.ghaf.profiles.debug.enable;
 
             virtualization.microvm.idsvm.mitmproxy.enable =
@@ -90,6 +89,7 @@ in
   config = lib.mkIf cfg.enable {
     microvm.vms."${vmName}" = {
       autostart = true;
+      inherit (inputs) nixpkgs;
       config = idsvmBaseConfiguration // {
         imports = idsvmBaseConfiguration.imports ++ cfg.extraModules;
       };

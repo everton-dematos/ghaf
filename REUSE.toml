@@ -55,13 +55,6 @@ SPDX-FileCopyrightText = "labwc contributors"
 path = "overlays/custom-packages/labwc/*.patch"
 
 [[annotations]]
-SPDX-License-Identifier = "GPL-3.0-only"
-SPDX-FileCopyrightText = [
-  "Copyright (c) 2024 Erik Reider, Jovan Lanik"
-]
-path = "overlays/custom-packages/gtklock-userinfo-module/0001-update.patch"
-
-[[annotations]]
 SPDX-License-Identifier = "LGPL-2.1-or-later"
 SPDX-FileCopyrightText = "systemd contributors"
 path = [
@@ -134,3 +127,11 @@ SPDX-FileCopyrightText = "Copyright (c) 2017-2020, Linaro Limited"
 path = [
   "targets/nvidia-jetson-orin/0001-ta-pkcs11-Build-time-option-for-controlling-pin-lock.patch"
 ]
+
+[[annotations]]
+SPDX-License-Identifier = "GPL-3.0-only"
+SPDX-FileCopyrightText = "Copyright (C) 2007 Free Software Foundation, Inc."
+path = [
+  "overlays/custom-packages/gtklock/*.patch"
+]
+
