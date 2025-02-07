@@ -12,6 +12,10 @@ let
     imports = [
       inputs.impermanence.nixosModules.impermanence
       inputs.self.nixosModules.givc-netvm
+      
+      # Importing the srta-ldpi module
+      inputs.srta-ldpi.nixosModules.ldpi
+      
       (import ./common/vm-networking.nix {
         inherit
           config
@@ -114,6 +118,7 @@ let
           microvm = {
             # Optimize is disabled because when it is enabled, qemu is built without libusb
             optimize.enable = false;
+            mem = 1024;
             hypervisor = "qemu";
             shares = [
               {
