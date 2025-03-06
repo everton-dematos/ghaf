@@ -162,7 +162,7 @@
     };
 
     srta-ldpi = {
-      url = "github:tiiuae/srta-ldpi/1b094ef4629d438bab38d0388777f8947392bb65";
+      url = "github:tiiuae/srta-ldpi/987b0f7be0c5deab8b36549ff7e45bde69ef4a48";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";
