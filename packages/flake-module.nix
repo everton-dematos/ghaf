@@ -27,6 +27,8 @@
 
       #fix these to be the correct packages placement
       packages = self.lib.platformPkgs system {
+        tetragon = callPackage ./tetragon {};
+        browserKiller = callPackage ./browserKiller {};
         doc = callPackage ../docs {
           revision = lib.strings.fileContents ../.version;
           options =

@@ -21,5 +21,6 @@
     # if it is a common then the file should be moved to common
     ../hardware/definition.nix
     ./logging
+    ./policy
   ];
 }

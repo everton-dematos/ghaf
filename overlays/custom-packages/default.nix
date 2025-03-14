@@ -12,4 +12,5 @@
   tpm2-pkcs11 = import ./tpm2-pkcs11 { inherit prev; };
   papirus-icon-theme = import ./papirus-icon-theme { inherit prev; };
   libfm = import ./libfm { inherit prev; };
+  opa = import ./opa {inherit final prev;};
 })

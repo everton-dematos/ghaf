@@ -1,0 +1,30 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "sys-symlink-passwd"
+spec:
+  kprobes:
+  - call: "sys_symlinkat"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    - index: 1
+      type: "int"
+    - index: 2
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "Prefix"
+        values:
+        - "/etc/passwd"
+        - "/etc/bashrc"
+        - "/etc/host.conf"
+        - "/etc/hostname"
+        - "/etc/hosts"
+        - "/etc/profile"
+        - "/etc/resolv.conf"
+        - "/etc/services"
+      matchActions:
+      - action: Sigkill

@@ -1,0 +1,28 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "browser-kill"
+spec:
+  kprobes:
+  - call: "tcp_connect"
+    syscall: false
+    args:
+    - index: 0
+      type: "sock"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "DAddr"
+        values:
+         - "157.240.15.35/16"
+         - "13.91.95.74/16"
+      matchBinaries:
+      - operator: "In"
+        values:
+         - "/run/current-system/sw/bin/chromium"
+         - "/nix/store/mckv3r4mmjgjmzd3fjr1n7d9awwbz029-chromium-unwrapped-120.0.6099.109/libexec/chromium/chromium "
+         - "/proc/self/exe"
+      matchActions:
+      - action: GetUrl
+        argUrl: http://localhost:4444
+

@@ -31,6 +31,16 @@ in
     # Disk configuration
     disko.devices.disk = cfg.disks;
 
+    boot.kernelPatches = [
+      {
+        name = "bpf_config";
+        patch = null;
+
+        extraStructuredConfig.FUNCTION_ERROR_INJECTION = lib.kernel.yes;
+        extraStructuredConfig.BPF_KPROBE_OVERRIDE = lib.kernel.yes;
+      }
+    ];
+
     # Host udev rules for input devices
     services.udev.extraRules = ''
       # Keyboard

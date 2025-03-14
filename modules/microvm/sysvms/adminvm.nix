@@ -23,7 +23,7 @@ let
       })
       ../common/storagevm.nix
       (
-        { lib, ... }:
+        { lib, pkgs, ... }:
         {
           ghaf = {
             # Profiles
@@ -35,6 +35,8 @@ let
               debug.tools.enable = lib.mkDefault configHost.ghaf.development.debug.tools.enable;
               nix-setup.enable = lib.mkDefault configHost.ghaf.development.nix-setup.enable;
             };
+
+            policy.opa.enable = true;
 
             # System
             type = "system-vm";
@@ -129,13 +131,36 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    microvm.vms."${vmName}" = {
-      autostart = true;
-      inherit (inputs) nixpkgs;
-      config = adminvmBaseConfiguration // {
-        imports = adminvmBaseConfiguration.imports ++ cfg.extraModules;
+    config = lib.mkIf cfg.enable (
+    let
+      pkgs = inputs.nixpkgs.legacyPackages.x86_64-linux;
+      tetragon = pkgs.tetragon;
+    in {
+      microvm.vms."${vmName}" = {
+        autostart = true;
+        inherit (inputs) nixpkgs;
+        config = adminvmBaseConfiguration // {
+          imports = adminvmBaseConfiguration.imports ++ cfg.extraModules;
+
+          environment.systemPackages = [ tetragon ];
+
+          systemd.services.tetragon = {
+            enable = true;
+            description = "Tetragon eBPF-based Security Observability and Runtime Enforcement";
+            after = [ "network.target" "local-fs.target" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Type = "simple";
+              User = "root";
+              Group = "root";
+              Environment = "PATH=${tetragon}/lib/tetragon/:${tetragon}/lib:${tetragon}/bin";
+              ExecStart = lib.mkForce "${tetragon}/bin/tetragon --bpf-lib ${tetragon}/lib/tetragon/bpf --server-address 0.0.0.0:3333";
+              StartLimitBurst = 10;
+              StartLimitIntervalSec = 120;
+            };
+          };
+        };
       };
-    };
-  };
+    }
+  );
 }
