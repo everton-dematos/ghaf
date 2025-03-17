@@ -143,6 +143,9 @@ in
           imports = adminvmBaseConfiguration.imports ++ cfg.extraModules;
 
           environment.systemPackages = [ tetragon ];
+          networking = {
+            firewall.allowedTCPPorts = [3333 2112 5555];
+          };
 
           systemd.services.tetragon = {
             enable = true;
