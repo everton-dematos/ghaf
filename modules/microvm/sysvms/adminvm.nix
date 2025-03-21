@@ -22,6 +22,7 @@ let
           ;
       })
       ../common/storagevm.nix
+      ../../common/security/tetragon.nix  
       (
         { lib, ... }:
         {
@@ -69,6 +70,7 @@ let
             };
           };
 
+          security.tetragon.enable = true;
           system.stateVersion = lib.trivial.release;
 
           nixpkgs = {
