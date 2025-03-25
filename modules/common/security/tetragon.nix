@@ -12,6 +12,12 @@
   config = lib.mkIf config.security.tetragon.enable {
     environment.systemPackages = [ pkgs.tetragon ];
 
+    # Ensure /tmp/log/tetragon.log exists with correct permissions
+    systemd.tmpfiles.rules = [
+      "d /tmp/log 0755 root root -"
+      "f /tmp/log/tetragon.log 0644 root root -"
+    ];
+
     # Systemd service for Tetragon
     systemd.services.tetragon = {
       description = "Tetragon - eBPF Security Observability";
@@ -22,14 +28,15 @@
         User = "root";
         Group = "root";
         Environment = "PATH=${pkgs.tetragon}/lib/tetragon/:${pkgs.tetragon}/lib:${pkgs.tetragon}/bin";
-        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /etc/tetragon/policies";
+        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /etc/tetragon/tetragon.tp.d";
         ExecStart = "${pkgs.tetragon}/bin/tetragon \
           --config-dir=/etc/tetragon \
           --bpf-lib ${pkgs.tetragon}/lib/tetragon/bpf \
-          --tracing-policy-dir=/etc/tetragon/policies \
+          --tracing-policy-dir=/etc/tetragon/tetragon.tp.d \
           --server-address 0.0.0.0:3333";
         StartLimitBurst = 10;
         StartLimitIntervalSec = 120;
+        ReadWritePaths = "/tmp/log/tetragon.log";
       };
     };
 
@@ -45,27 +52,36 @@
       enable_file_events: true
       enable_network_events: true
       enforcement: true
+      export-filename: /tmp/log/tetragon.log
+      export-file-max-size-mb: 1
+      export-file-rotation-interval: 10s
     '';
 
-    # environment.etc."tetragon/policies/test-ls.yaml".text = ''
-    #   apiVersion: cilium.io/v1alpha1
-    #   kind: TracingPolicy
-    #   metadata:
-    #     name: log-ls-exec
-    #   spec:
-    #     kprobes:
-    #     - call: "execve"
-    #       syscall: true
-    #       args:
-    #       - index: 0
-    #         type: "string"
-    #       selectors:
-    #       - matchBinaries:
-    #           operator: "In"
-    #           values:
-    #             - "/usr/bin/ls"
-    #             - "/bin/ls"
-    #       action: "log"
-    # '';
+    # Tracing policy for logging 'ls' executions
+    environment.etc."tetragon/tetragon.tp.d/test-ls.yaml" = {
+      mode = "0444";
+      text = ''
+        apiVersion: cilium.io/v1alpha1
+        kind: TracingPolicy
+        metadata:
+          name: log-ls-exec
+        spec:
+          tracepoints:
+            - subsystem: "syscalls"
+              event: "sys_enter_execve"
+              args:
+                - index: 0
+                  type: "string"
+              selectors:
+                - matchBinaries:
+                    - operator: In
+                      values:
+                        - "/run/current-system/sw/bin/ls"
+                        - "/usr/bin/ls"
+                        - "/nix/store/*/bin/ls"
+                  matchActions:
+                    - action: Post
+      '';
+    };
   };
 }
