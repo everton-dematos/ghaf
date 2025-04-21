@@ -14,6 +14,9 @@ let
       inputs.self.nixosModules.givc
       inputs.self.nixosModules.vm-modules
       inputs.self.nixosModules.profiles
+
+      # Importing the srta-ldpi module
+      inputs.srta-ldpi.nixosModules.ldpi
       (
         { lib, ... }:
         {
@@ -97,6 +100,7 @@ let
           microvm = {
             # Optimize is disabled because when it is enabled, qemu is built without libusb
             optimize.enable = false;
+            mem = 1024;
             hypervisor = "qemu";
             shares = [
               {
