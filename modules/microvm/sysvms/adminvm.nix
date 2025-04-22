@@ -16,6 +16,7 @@ let
       inputs.self.nixosModules.givc
       inputs.self.nixosModules.vm-modules
       inputs.self.nixosModules.profiles
+      ../../common/security/tetragon.nix  
       (
         { lib, ... }:
         {
@@ -70,6 +71,9 @@ let
           };
 
           system.stateVersion = lib.trivial.release;
+
+          #Enable Tetragon
+          security.tetragon.enable = true;
 
           nixpkgs = {
             buildPlatform.system = configHost.nixpkgs.buildPlatform.system;
