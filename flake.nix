@@ -127,7 +127,7 @@
     };
 
     givc = {
-      url = "github:tiiuae/ghaf-givc";
+      url = "github:everton-dematos/ghaf-givc?ref=policy_test";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         flake-parts.follows = "flake-parts";

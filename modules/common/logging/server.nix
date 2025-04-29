@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -46,6 +47,39 @@ in
       }
     ];
 
+    # Enable a local Loki server (on port 3100)
+    services.loki = {
+      enable = true;
+      configuration = {
+        server.http_listen_address = "127.0.0.1";
+        server.http_listen_port = 3100;
+
+        ingester.lifecycler.ring.kvstore.store = "inmemory";
+        ingester.lifecycler.ring.replication_factor = 1;
+        ingester.lifecycler.final_sleep = "0s";
+        ingester.chunk_idle_period = "5m";
+        ingester.chunk_retain_period = "30s";
+
+        schema_config.configs = [{
+          from = "2020-10-15";
+          store = "boltdb";
+          object_store = "filesystem";
+          schema = "v11";
+          index.prefix = "index_";
+          index.period = "24h";
+        }];
+
+        storage_config.boltdb.directory = "/tmp/loki/index";
+        storage_config.filesystem.directory = "/tmp/loki/chunks";
+
+        limits_config.retention_period = "24h";
+        limits_config.allow_structured_metadata = false;
+
+        table_manager.retention_deletes_enabled = true;
+        table_manager.retention_period = "24h";
+      };
+    };
+
     environment.etc."loki/pass" = {
       text = "ghaf";
     };
@@ -65,7 +99,11 @@ in
         }
 
         loki.process "system" {
-          forward_to = [loki.write.remote.receiver]
+          forward_to = [
+            loki.write.remote.receiver,
+            loki.write.local.receiver,
+            loki.write.rustreceiver.receiver,
+          ]
           stage.drop {
             expression = "(GatewayAuthenticator::login|Gateway login succeeded|csd-wrapper|nmcli)"
           }
@@ -74,7 +112,7 @@ in
         loki.source.journal "journal" {
           path          = "/var/log/journal"
           relabel_rules = discovery.relabel.adminJournal.rules
-          forward_to    = [loki.write.remote.receiver]
+          forward_to    = [loki.write.remote.receiver, loki.write.local.receiver, loki.write.rustreceiver.receiver,]
         }
 
         loki.write "remote" {
@@ -93,7 +131,29 @@ in
             max_segment_age = "240h"
             drain_timeout = "4s"
           }
-          external_labels = {systemdJournalLogs = local.file.macAddress.content }
+          external_labels = { systemdJournalLogs = local.file.macAddress.content }
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://127.0.0.1:3100/loki/api/v1/push"
+            headers = {
+              "X-Scope-OrgID" = "journal",
+            }
+          }
+          wal {
+            enabled = true
+            max_segment_age = "24h"
+            drain_timeout = "5s"
+          }
+          external_labels = { source = "admin-vm" }
+        }
+
+        loki.write "rustreceiver" {
+          endpoint {
+            url = "http://127.0.0.1:8484/logs"
+          }
+          external_labels = { source = "admin-vm" }
         }
 
         loki.source.api "listener" {
@@ -117,9 +177,10 @@ in
     # https://github.com/grafana/loki/issues/6533
     systemd.services.alloy.serviceConfig.TimeoutStopSec = 4;
 
-    networking.firewall = {
-      allowedTCPPorts = [ config.ghaf.logging.listener.port ];
-      allowedUDPPorts = [ ];
-    };
+    networking.firewall.allowedTCPPorts = [
+      config.ghaf.logging.listener.port
+      3100  # Allow querying the local Loki server
+      8484 
+    ];
   };
 }
