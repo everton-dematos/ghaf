@@ -325,6 +325,18 @@ boolean</p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/development/debug-tools.nix">https://github.com/tiiuae/ghaf/blob/main/modules/development/debug-tools.nix</a></li>
 </ul>
+<h2 id="ghafdevelopmentdebugtoolsguienable"><a class="header" href="#ghafdevelopmentdebugtoolsguienable">ghaf.development.debug.tools.gui.enable</a></h2>
+<p>Whether to enable Enable GUI Debugging Tools.</p>
+<p><em>Type:</em>
+boolean</p>
+<p><em>Default:</em>
+<code>false</code></p>
+<p><em>Example:</em>
+<code>true</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/development/dt-gui.nix">https://github.com/tiiuae/ghaf/blob/main/modules/development/dt-gui.nix</a></li>
+</ul>
 <h2 id="ghafdevelopmentnix-setupenable"><a class="header" href="#ghafdevelopmentnix-setupenable">ghaf.development.nix-setup.enable</a></h2>
 <p>Whether to enable Target Nix config options.</p>
 <p><em>Type:</em>
@@ -616,6 +628,52 @@ boolean</p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
 </ul>
+<h2 id="ghafgraphicscosmicsecuritycontext"><a class="header" href="#ghafgraphicscosmicsecuritycontext">ghaf.graphics.cosmic.securityContext</a></h2>
+<p>Security context settings</p>
+<p><em>Type:</em>
+submodule</p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
+</ul>
+<h2 id="ghafgraphicscosmicsecuritycontextborderwidth"><a class="header" href="#ghafgraphicscosmicsecuritycontextborderwidth">ghaf.graphics.cosmic.securityContext.borderWidth</a></h2>
+<p>Default border width</p>
+<p><em>Type:</em>
+positive integer, meaning &gt;0</p>
+<p><em>Default:</em>
+<code>4</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
+</ul>
+<h2 id="ghafgraphicscosmicsecuritycontextrules"><a class="header" href="#ghafgraphicscosmicsecuritycontextrules">ghaf.graphics.cosmic.securityContext.rules</a></h2>
+<p>List of security contexts rules</p>
+<p><em>Type:</em>
+list of (submodule)</p>
+<p><em>Default:</em>
+<code>[ ]</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
+</ul>
+<h2 id="ghafgraphicscosmicsecuritycontextrulescolor"><a class="header" href="#ghafgraphicscosmicsecuritycontextrulescolor">ghaf.graphics.cosmic.securityContext.rules.*.color</a></h2>
+<p>Window border color</p>
+<p><em>Type:</em>
+string</p>
+<p><em>Example:</em>
+<code>"#006305"</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
+</ul>
+<h2 id="ghafgraphicscosmicsecuritycontextrulesidentifier"><a class="header" href="#ghafgraphicscosmicsecuritycontextrulesidentifier">ghaf.graphics.cosmic.securityContext.rules.*.identifier</a></h2>
+<p>The identifier attached to the security context</p>
+<p><em>Type:</em>
+string</p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/cosmic</a></li>
+</ul>
 <h2 id="ghafgraphicsintel-setupenable"><a class="header" href="#ghafgraphicsintel-setupenable">ghaf.graphics.intel-setup.enable</a></h2>
 <p>Whether to enable Enable Intel GPU setup.</p>
 <p><em>Type:</em>
@@ -677,6 +735,16 @@ null or string</p>
 string</p>
 <p><em>Default:</em>
 <code>""</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix</a></li>
+</ul>
+<h2 id="ghafgraphicslabwcextravariables"><a class="header" href="#ghafgraphicslabwcextravariables">ghaf.graphics.labwc.extraVariables</a></h2>
+<p>Extra environment variables applied to ghaf application launcher.</p>
+<p><em>Type:</em>
+attribute set</p>
+<p><em>Default:</em>
+<code>{ }</code></p>
 <p><em>Declared by:</em></p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix</a></li>
@@ -827,7 +895,7 @@ string</p>
 <p><em>Type:</em>
 absolute path</p>
 <p><em>Default:</em>
-<code>"/nix/store/1b1azn8ax7i9bfprsz4bp3ylvmhk02zd-ghaf-artwork-0.1.0/ghaf-desert-sunset.jpg"</code></p>
+<code>"/nix/store/js68j24hmxb4iznkn19024kgcky13rxi-ghaf-artwork-0.1.0/ghaf-desert-sunset.jpg"</code></p>
 <p><em>Declared by:</em></p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/graphics/labwc.nix</a></li>
@@ -910,6 +978,17 @@ boolean</p>
 <code>false</code></p>
 <p><em>Example:</em>
 <code>true</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/nvidia-gpu">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/nvidia-gpu</a></li>
+</ul>
+<h2 id="ghafgraphicsnvidia-setupopendrivers"><a class="header" href="#ghafgraphicsnvidia-setupopendrivers">ghaf.graphics.nvidia-setup.openDrivers</a></h2>
+<p>Whether to use the open source drivers instead of the nvidia
+proprietary drivers, e.g., for Blackwell architectures.</p>
+<p><em>Type:</em>
+boolean</p>
+<p><em>Default:</em>
+<code>false</code></p>
 <p><em>Declared by:</em></p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/desktop/nvidia-gpu">https://github.com/tiiuae/ghaf/blob/main/modules/desktop/nvidia-gpu</a></li>
@@ -1199,30 +1278,6 @@ null or string</p>
 null or string</p>
 <p><em>Default:</em>
 <code>null</code></p>
-<p><em>Declared by:</em></p>
-<ul>
-<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix">https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix</a></li>
-</ul>
-<h2 id="ghafhardwaredefinitiondisks"><a class="header" href="#ghafhardwaredefinitiondisks">ghaf.hardware.definition.disks</a></h2>
-<p>Disks to format and mount</p>
-<p><em>Type:</em>
-attribute set of (submodule)</p>
-<p><em>Default:</em>
-<code>{ }</code></p>
-<p><em>Example:</em></p>
-<pre><code>{
-  disk1.device = "/dev/nvme0n1";
-}
-
-</code></pre>
-<p><em>Declared by:</em></p>
-<ul>
-<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix">https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix</a></li>
-</ul>
-<h2 id="ghafhardwaredefinitiondisksnamedevice"><a class="header" href="#ghafhardwaredefinitiondisksnamedevice">ghaf.hardware.definition.disks.&lt;name&gt;.device</a></h2>
-<p>Path to the disk</p>
-<p><em>Type:</em>
-string</p>
 <p><em>Declared by:</em></p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix">https://github.com/tiiuae/ghaf/blob/main/modules/hardware/definition.nix</a></li>
@@ -2097,38 +2152,6 @@ list of (attribute set)</p>
     ];
   }
   {
-    name = "ChromeVM";
-    qmpSocket = "/var/lib/microvms/chrome-vm/chrome-vm.sock";
-    usbPassthrough = [
-      {
-        class = 14;
-        description = "Video (USB Webcams)";
-        ignore = [
-          {
-            description = "Lenovo X1 Integrated Camera";
-            productId = "b751";
-            vendorId = "04f2";
-          }
-          {
-            description = "Lenovo X1 Integrated Camera";
-            productId = "2145";
-            vendorId = "5986";
-          }
-          {
-            description = "Lenovo X1 Integrated Camera";
-            productId = "0052";
-            vendorId = "30c9";
-          }
-          {
-            description = "Lenovo X1 Integrated Camera";
-            productId = "005f";
-            vendorId = "30c9";
-          }
-        ];
-      }
-    ];
-  }
-  {
     name = "AudioVM";
     qmpSocket = "/var/lib/microvms/audio-vm/audio-vm.sock";
     usbPassthrough = [
@@ -2473,7 +2496,7 @@ string</p>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/common/networking/hosts.nix">https://github.com/tiiuae/ghaf/blob/main/modules/common/networking/hosts.nix</a></li>
 </ul>
 <h2 id="ghafpartitioningdiskoenable"><a class="header" href="#ghafpartitioningdiskoenable">ghaf.partitioning.disko.enable</a></h2>
-<p>Whether to enable Enable the disko partitioning scheme.</p>
+<p>Whether to enable the disko partitioning scheme.</p>
 <p><em>Type:</em>
 boolean</p>
 <p><em>Default:</em>
@@ -3851,6 +3874,16 @@ boolean</p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/common/systemd/base.nix">https://github.com/tiiuae/ghaf/blob/main/modules/common/systemd/base.nix</a></li>
 </ul>
+<h2 id="ghafsystemdwithsysupdate"><a class="header" href="#ghafsystemdwithsysupdate">ghaf.systemd.withSysupdate</a></h2>
+<p>Enable systemd system update functionality.</p>
+<p><em>Type:</em>
+boolean</p>
+<p><em>Default:</em>
+<code>false</code></p>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/common/systemd/base.nix">https://github.com/tiiuae/ghaf/blob/main/modules/common/systemd/base.nix</a></li>
+</ul>
 <h2 id="ghafsystemdwithtimesyncd"><a class="header" href="#ghafsystemdwithtimesyncd">ghaf.systemd.withTimesyncd</a></h2>
 <p>Enable systemd timesync daemon.</p>
 <p><em>Type:</em>
@@ -4694,6 +4727,16 @@ list of 16 bit unsigned integer; between 0 and 65535 (both inclusive) <em>(read 
   8081
 ]
 </code></pre>
+<p><em>Declared by:</em></p>
+<ul>
+<li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/microvm/sysvms/idsvm/mitmproxy">https://github.com/tiiuae/ghaf/blob/main/modules/microvm/sysvms/idsvm/mitmproxy</a></li>
+</ul>
+<h2 id="ghafvirtualizationmicrovmidsvmmitmproxywebuipswd"><a class="header" href="#ghafvirtualizationmicrovmidsvmmitmproxywebuipswd">ghaf.virtualization.microvm.idsvm.mitmproxy.webUIPswd</a></h2>
+<p>MitmwebUI password</p>
+<p><em>Type:</em>
+string <em>(read only)</em></p>
+<p><em>Default:</em>
+<code>"ghaf"</code></p>
 <p><em>Declared by:</em></p>
 <ul>
 <li><a href="https://github.com/tiiuae/ghaf/blob/main/modules/microvm/sysvms/idsvm/mitmproxy">https://github.com/tiiuae/ghaf/blob/main/modules/microvm/sysvms/idsvm/mitmproxy</a></li>
