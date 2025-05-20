@@ -51,6 +51,7 @@ in
     services.loki = {
       enable = true;
       configuration = {
+        server.http_listen_address = "127.0.0.1";
         server.http_listen_port = 3100;
 
         ingester.lifecycler.ring.kvstore.store = "inmemory";
@@ -101,6 +102,7 @@ in
           forward_to = [
             loki.write.remote.receiver,
             loki.write.local.receiver,
+            loki.write.rustreceiver.receiver,
           ]
           stage.drop {
             expression = "(GatewayAuthenticator::login|Gateway login succeeded|csd-wrapper|nmcli)"
@@ -110,7 +112,7 @@ in
         loki.source.journal "journal" {
           path          = "/var/log/journal"
           relabel_rules = discovery.relabel.adminJournal.rules
-          forward_to    = [loki.write.remote.receiver, loki.write.local.receiver,]
+          forward_to    = [loki.write.remote.receiver, loki.write.local.receiver, loki.write.rustreceiver.receiver,]
         }
 
         loki.write "remote" {
@@ -136,13 +138,20 @@ in
           endpoint {
             url = "http://127.0.0.1:3100/loki/api/v1/push"
             headers = {
-              "X-Scope-OrgID" = "anonymous",
+              "X-Scope-OrgID" = "journal",
             }
           }
           wal {
             enabled = true
             max_segment_age = "24h"
             drain_timeout = "5s"
+          }
+          external_labels = { source = "admin-vm" }
+        }
+
+        loki.write "rustreceiver" {
+          endpoint {
+            url = "http://127.0.0.1:8484/logs"
           }
           external_labels = { source = "admin-vm" }
         }
@@ -171,6 +180,7 @@ in
     networking.firewall.allowedTCPPorts = [
       config.ghaf.logging.listener.port
       3100  # Allow querying the local Loki server
+      8484 
     ];
   };
 }

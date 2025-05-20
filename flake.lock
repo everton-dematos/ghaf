@@ -315,11 +315,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1746704875,
-        "narHash": "sha256-L17dLQnslfOLWBuxWanA9/pasK7seGNXie8h/BJradI=",
+        "lastModified": 1747722543,
+        "narHash": "sha256-G3C7eP5P8RjYiymib6uxx3oagCQfp5enVobI2EoFOdw=",
         "owner": "everton-dematos",
         "repo": "ghaf-givc",
-        "rev": "b89ca37ed4ebdfe01864fb4b0da705ea921c15a9",
+        "rev": "47fae123d3f743bc5286c756aa0a56bb40d02171",
         "type": "github"
       },
       "original": {
