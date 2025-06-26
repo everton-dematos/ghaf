@@ -42,7 +42,7 @@ in
         }
 
         loki.source.journal "journal" {
-          path          = "/var/log/journal"
+          path          = "/run/log/journal"
           relabel_rules = discovery.relabel.journal.rules
           forward_to    = [loki.write.adminvm.receiver]
         }
@@ -62,5 +62,9 @@ in
     # still keep on retrying to send logs batch, so we need to
     # stop it forcefully.
     systemd.services.alloy.serviceConfig.TimeoutStopSec = 4;
+
+    services.journald.extraConfig = ''
+      Storage=volatile
+    '';
   };
 }

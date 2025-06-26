@@ -77,7 +77,7 @@ in
         }
 
         loki.source.journal "journal" {
-          path          = "/var/log/journal"
+          path          = "/run/log/journal"
           relabel_rules = discovery.relabel.adminJournal.rules
           forward_to    = [loki.write.remote.receiver]
         }
@@ -126,5 +126,9 @@ in
       allowedTCPPorts = [ config.ghaf.logging.listener.port ];
       allowedUDPPorts = [ ];
     };
+
+    services.journald.extraConfig = ''
+      Storage=volatile
+    '';
   };
 }
