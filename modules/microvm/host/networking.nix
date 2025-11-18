@@ -124,15 +124,29 @@ in
         allowedUDPPorts = optionals (!hasNetvm) [ 67 ];
       };
 
-      boot.kernel.sysctl = optionalAttrs enableStaticArp {
-        # only reply on same interface
-        "net.ipv4.conf.${cfg.bridgeNicName}.arp_filter" = 1;
-        # do not create new entries in the ARP table
-        "net.ipv4.conf.${cfg.bridgeNicName}.arp_accept" = 0;
-        # uses the best local IP on the outgoing interface
-        "net.ipv4.conf.${cfg.bridgeNicName}.arp_announce" = 2;
-        # no reply to ARP requests
-        "net.ipv4.conf.${cfg.bridgeNicName}.arp_ignore" = 8;
+      # One-shot service to set ARP sysctls on the bridge once it exists
+      systemd.services."ghaf-arp-${cfg.bridgeNicName}" = lib.mkIf enableStaticArp {
+        description = "Set ARP hardening sysctls for ${cfg.bridgeNicName}";
+        wantedBy = [ "multi-user.target" ];
+
+        # Run only after the net device (virbr0 by default) exists
+        after = [ "sys-subsystem-net-devices-${cfg.bridgeNicName}.device" ];
+        requires = [ "sys-subsystem-net-devices-${cfg.bridgeNicName}.device" ];
+
+        serviceConfig = {
+          Type = "oneshot";
+
+          ExecStart = [
+            (pkgs.writeShellScript "ghaf-arp-${cfg.bridgeNicName}" ''
+              set -eu
+              ${pkgs.procps}/sbin/sysctl -q -w \
+                net.ipv4.conf.${cfg.bridgeNicName}.arp_filter=1 \
+                net.ipv4.conf.${cfg.bridgeNicName}.arp_accept=0 \
+                net.ipv4.conf.${cfg.bridgeNicName}.arp_announce=2 \
+                net.ipv4.conf.${cfg.bridgeNicName}.arp_ignore=8
+            '')
+          ];
+        };
       };
 
       systemd.network = {

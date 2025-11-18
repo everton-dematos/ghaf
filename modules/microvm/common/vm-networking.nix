@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -13,7 +14,6 @@ let
     mkDefault
     mkIf
     mkOption
-    optionalAttrs
     types
     ;
   inherit (config.ghaf.networking) hosts;
@@ -59,16 +59,30 @@ in
       "net.ipv4.ip_forward" = cfg.isGateway;
       # reply only if the target IP address is local address configured on the incoming interface
       "net.ipv4.conf.all.arp_ignore" = 1;
-    }
-    // optionalAttrs enableStaticArp {
-      # only reply on same interface
-      "net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_filter" = 1;
-      # do not create new entries in the ARP table
-      "net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_accept" = 0;
-      # uses the best local IP on the outgoing interface
-      "net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_announce" = 2;
-      # no reply to ARP requests
-      "net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_ignore" = 8;
+    };
+
+    # One-shot service to set ARP sysctls on the VM interface once it exists
+    systemd.services."ghaf-arp-${hosts.${cfg.vmName}.interfaceName}" = lib.mkIf enableStaticArp {
+      description = "Set ARP hardening sysctls for ${hosts.${cfg.vmName}.interfaceName} in ${cfg.vmName}";
+      wantedBy = [ "multi-user.target" ];
+
+      # Run only after the VM's net device exists
+      after = [ "sys-subsystem-net-devices-${hosts.${cfg.vmName}.interfaceName}.device" ];
+      requires = [ "sys-subsystem-net-devices-${hosts.${cfg.vmName}.interfaceName}.device" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = [
+          (pkgs.writeShellScript "ghaf-arp-${hosts.${cfg.vmName}.interfaceName}" ''
+            set -eu
+            ${pkgs.procps}/sbin/sysctl -q -w \
+              net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_filter=1 \
+              net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_accept=0 \
+              net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_announce=2 \
+              net.ipv4.conf.${hosts.${cfg.vmName}.interfaceName}.arp_ignore=8
+          '')
+        ];
+      };
     };
 
     ghaf.firewall = {
