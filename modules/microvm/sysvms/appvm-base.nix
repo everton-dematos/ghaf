@@ -243,7 +243,20 @@ in
         };
 
         # Security
-        security.fail2ban.enable = globalConfig.development.ssh.daemon.enable or false;
+        security = {
+          fail2ban.enable = globalConfig.development.ssh.daemon.enable or false;
+
+          spiffe = {
+            enable = true;
+            agent = {
+              enable = true;
+              serverAddress = "192.168.100.5";
+              serverPort = 8081;
+              trustDomain = "ghaf.internal";
+              joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
+            };
+          };
+        };
       };
 
       # Combined udev rules (yubikey + passthrough)

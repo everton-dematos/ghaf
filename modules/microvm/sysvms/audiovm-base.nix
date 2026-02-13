@@ -145,7 +145,19 @@ in
       server.endpoint = globalConfig.logging.server.endpoint or "";
     };
 
-    security.fail2ban.enable = globalConfig.development.ssh.daemon.enable or false;
+    security = {
+      fail2ban.enable = globalConfig.development.ssh.daemon.enable or false;
+      spiffe = {
+        enable = true;
+        agent = {
+          enable = true;
+          serverAddress = "192.168.100.5";
+          serverPort = 8081;
+          trustDomain = "ghaf.internal";
+          joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
+        };
+      };
+    };
 
     # Networking hosts - from hostConfig (for vm-networking.nix to look up MAC/IP)
     networking.hosts = hostConfig.networking.hosts or { };

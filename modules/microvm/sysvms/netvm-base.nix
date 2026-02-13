@@ -160,6 +160,17 @@ in
 
       # Audit - from globalConfig
       audit.enable = lib.mkDefault (globalConfig.security.audit.enable or false);
+
+      spiffe = {
+        enable = true;
+        agent = {
+          enable = true;
+          serverAddress = "192.168.100.5";
+          serverPort = 8081;
+          trustDomain = "ghaf.internal";
+          joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
+        };
+      };
     };
 
     # Common namespace - from hostConfig
