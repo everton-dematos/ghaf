@@ -154,7 +154,7 @@ in
         # allow agent process to create files with group spiffe when directory has SGID
         SupplementaryGroups = [ cfg.workloadApiGroup ];
 
-        ExecStart = "${pkgs.spire}/bin/spire-agent run -config /etc/spire/agent.conf";
+        ExecStart = "${pkgs.spire-agent}/bin/spire-agent run -config /etc/spire/agent.conf";
 
         StateDirectory = "spire/agent";
         StateDirectoryMode = "0750";
