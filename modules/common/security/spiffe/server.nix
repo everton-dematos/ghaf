@@ -9,6 +9,84 @@
 let
   cfg = config.ghaf.security.spiffe.server;
 
+  # ---------------------------------------------------------------------------
+  # Perf logger (process RSS + systemd cgroup memory + CPU%) for 15min window
+  # ---------------------------------------------------------------------------
+  spireServerPerfLogger = pkgs.writeShellApplication {
+    name = "spire-server-perf-log";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.procps
+      pkgs.gawk
+      pkgs.systemd
+    ];
+    text = ''
+      unit="spire-server.service"
+      duration="${toString cfg.perf.durationSec}"
+      interval="${toString cfg.perf.intervalSec}"
+      out="${cfg.perf.outPath}"
+
+      bytes_to_mib() { awk "BEGIN {printf \"%.2f\", $1/1024/1024}"; }
+
+      mkdir -p "$(dirname "$out")" || true
+
+      # Wait until spire-server is up (best-effort, bounded)
+      for _ in $(seq 1 120); do
+        if systemctl is-active --quiet "$unit"; then
+          pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null || true)"
+          if [ -n "''${pid:-}" ] && [ "''${pid:-0}" != "0" ]; then
+            break
+          fi
+        fi
+        sleep 1
+      done
+
+      echo "timestamp_epoch,iso_time,service,main_pid,cpu_percent,proc_rss_bytes,proc_rss_mib,cgroup_mem_current_bytes,cgroup_mem_current_mib,cgroup_mem_peak_bytes,cgroup_mem_peak_mib" > "$out"
+
+      end=$(( $(date +%s) + duration ))
+
+      while [ "$(date +%s)" -lt "$end" ]; do
+        ts="$(date +%s)"
+        iso="$(date -Is)"
+
+        pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null || true)"
+        pid="''${pid:-0}"
+        if [ -z "$pid" ]; then pid=0; fi
+
+        # CPU% (instantaneous)
+        cpu="0"
+        if [ "$pid" != "0" ] && [ -r "/proc/$pid/stat" ]; then
+          cpu="$(ps -p "$pid" -o %cpu= 2>/dev/null | tr -d ' ' || echo 0)"
+        fi
+
+        # Process RSS (VmRSS)
+        rss_bytes=0
+        if [ "$pid" != "0" ] && [ -r "/proc/$pid/status" ]; then
+          rss_kib="$(awk '/VmRSS:/ {print $2}' "/proc/$pid/status" 2>/dev/null || echo 0)"
+          rss_kib="''${rss_kib:-0}"
+          rss_bytes=$(( rss_kib * 1024 ))
+        fi
+        rss_mib="$(bytes_to_mib "$rss_bytes")"
+
+        # Cgroup memory (systemd)
+        cg_cur="$(systemctl show "$unit" -p MemoryCurrent --value 2>/dev/null || echo 0)"
+        cg_cur="''${cg_cur:-0}"
+        if [ -z "$cg_cur" ]; then cg_cur=0; fi
+
+        cg_peak="$(systemctl show "$unit" -p MemoryPeak --value 2>/dev/null || echo 0)"
+        cg_peak="''${cg_peak:-0}"
+        if [ -z "$cg_peak" ]; then cg_peak=0; fi
+
+        cg_cur_mib="$(bytes_to_mib "$cg_cur")"
+        cg_peak_mib="$(bytes_to_mib "$cg_peak")"
+
+        echo "$ts,$iso,spire-server,$pid,$cpu,$rss_bytes,$rss_mib,$cg_cur,$cg_cur_mib,$cg_peak,$cg_peak_mib" >> "$out"
+
+        sleep "$interval"
+      done
+    '';
+  };
+
   spireGenerateJoinTokensApp = pkgs.writeShellApplication {
     name = "spire-generate-join-tokens";
     runtimeInputs = [
@@ -287,6 +365,33 @@ in
       default = [ ];
       description = "Workload entries to register";
     };
+
+    # --- PERF (testing only) ---
+    perf = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable SPIRE server perf logging since boot (testing only).";
+      };
+
+      durationSec = lib.mkOption {
+        type = lib.types.int;
+        default = 1800; # 30 min
+        description = "How long to log (seconds).";
+      };
+
+      intervalSec = lib.mkOption {
+        type = lib.types.int;
+        default = 10;
+        description = "Sampling interval (seconds).";
+      };
+
+      outPath = lib.mkOption {
+        type = lib.types.str;
+        default = "/tmp/spire-server-perf.csv";
+        description = "CSV output path for perf logging.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -411,6 +516,26 @@ in
         RemainAfterExit = true;
         User = "root";
         ExecStart = lib.getExe spireCreateWorkloadEntriesApp;
+      };
+    };
+
+    # --- PERF LOGGER SERVICE (runs once since boot, after spire-server is up) ---
+    systemd.services.spire-server-perf = lib.mkIf cfg.perf.enable {
+      description = "SPIRE Server perf logger (testing only)";
+      wantedBy = [ "multi-user.target" ];
+
+      after = [ "spire-server.service" ];
+      wants = [ "spire-server.service" ];
+      requires = [ "spire-server.service" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+
+        # IMPORTANT: don't use PrivateTmp here, otherwise /tmp becomes private to the unit
+        PrivateTmp = false;
+
+        ExecStart = lib.getExe spireServerPerfLogger;
       };
     };
   };
