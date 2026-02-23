@@ -10,6 +10,7 @@ in
   imports = [
     ./server.nix
     ./agent.nix
+    ./envoy.nix
   ];
 
   options.ghaf.security.spiffe = {

@@ -161,6 +161,14 @@ in
           trustDomain = "ghaf.internal";
           joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
         };
+
+        envoy = {
+          enable = true;
+          # optional overrides:
+          # listenerPort = 8443;
+          # spiffeId = "spiffe://ghaf.internal/envoy";
+          # allowedClientSpiffeIds = [ "spiffe://ghaf.internal/some-client" ];
+        };
       };
     };
 
