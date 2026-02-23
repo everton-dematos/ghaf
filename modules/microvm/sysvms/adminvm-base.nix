@@ -27,6 +27,7 @@ let
 
   # List of VMs that will run spire-agent (token will be created if missing)
   spireAgentVMs = [
+    "admin-vm"
     "business-vm"
     "chrome-vm"
     "comms-vm"
@@ -177,6 +178,13 @@ in
       spiffe = {
         enable = true;
         inherit trustDomain;
+        agent = {
+          enable = true;
+          serverAddress = "127.0.0.1";
+          serverPort = 8081;
+          inherit trustDomain;
+          joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
+        };
         server = {
           enable = true;
           inherit spireAgentVMs;
@@ -185,12 +193,33 @@ in
           workloadEntries = [
             {
               name = "workload";
-              selectors = [ "unix:user:ghaf" ];
+              selectors = [
+                "unix:user:ghaf"
+                "unix:user:root"
+              ];
+            }
+            {
+              name = "backend";
+              selectors = [ "unix:user:root" ];
             }
           ];
           bundleOutPath = "/etc/common/spire/bundle.pem";
           generateJoinTokens = true;
           publishBundle = true;
+        };
+        ghostunnel = {
+          enable = true;
+          description = "Ghostunnel Server (admin-vm test backend: SPIRE server)";
+          mode = "server";
+          listen = "${hostConfig.networking.thisVm.ipv4 or "192.168.100.5"}:8443";
+          # Temporary test backend so the tunnel can be validated end-to-end.
+          # Replace with the real admin-vm service to protect.
+          target = "127.0.0.1:8081";
+          user = "root";
+          extraArgs = [
+            "--allow-uri"
+            "spiffe://ghaf.internal/workload/workload"
+          ];
         };
       };
     };
@@ -204,6 +233,8 @@ in
     buildPlatform.system = globalConfig.platform.buildSystem or "x86_64-linux";
     hostPlatform.system = globalConfig.platform.hostSystem or "x86_64-linux";
   };
+
+  ghaf.firewall.allowedTCPPorts = [ 8443 ];
 
   microvm = {
     optimize.enable = false;

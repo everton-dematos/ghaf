@@ -269,6 +269,18 @@ in
               trustDomain = "ghaf.internal";
               joinTokenFile = "/etc/common/spire/tokens/${vmName}.token";
             };
+            ghostunnel = {
+              enable = true;
+              mode = "client";
+              listen = "127.0.0.1:9443";
+              target = "192.168.100.5:8443";
+
+              # Pass Ghostunnel SPIFFE verification / policy flags here
+              extraArgs = [
+                "--verify-uri"
+                "spiffe://ghaf.internal/workload/backend"
+              ];
+            };
           };
         };
       };

@@ -10,6 +10,7 @@ in
   imports = [
     ./server.nix
     ./agent.nix
+    ./ghostunnel.nix
   ];
 
   options.ghaf.security.spiffe = {

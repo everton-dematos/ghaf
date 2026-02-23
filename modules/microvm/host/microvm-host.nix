@@ -141,6 +141,18 @@ in
             joinTokenFile = "/persist/common/spire/tokens/${hostName}.token";
             trustBundlePath = "/persist/common/spire/bundle.pem";
           };
+          ghostunnel = {
+            enable = true;
+            description = "Ghostunnel Client (ghaf-host -> admin-vm)";
+            mode = "client";
+            listen = "127.0.0.1:9443";
+            target = "192.168.100.5:8443";
+            user = "root";
+            extraArgs = [
+              "--verify-uri"
+              "spiffe://ghaf.internal/workload/backend"
+            ];
+          };
         };
       };
 

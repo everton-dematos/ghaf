@@ -148,8 +148,12 @@ let
       echo ""
       echo "Creating entries for $AGENT_COUNT agents..."
 
-      # Workload names
-      WORKLOADS=( ${lib.concatMapStringsSep " " (e: lib.escapeShellArg e.name) cfg.workloadEntries} )
+      # Workload specs: "name|selector1,selector2"
+      WORKLOAD_SPECS=( ${
+        lib.concatMapStringsSep " " (
+          e: lib.escapeShellArg "${e.name}|${lib.concatStringsSep "," e.selectors}"
+        ) cfg.workloadEntries
+      } )
 
       # Create entries for EACH agent
       CREATED=0
@@ -159,7 +163,9 @@ let
         echo ""
         echo "--- Agent: $PARENT_ID ---"
 
-        for WORKLOAD in "''${WORKLOADS[@]}"; do
+        for SPEC in "''${WORKLOAD_SPECS[@]}"; do
+          WORKLOAD="''${SPEC%%|*}"
+          SELECTORS_CSV="''${SPEC#*|}"
           SPIFFE_ID="spiffe://$TRUST_DOMAIN/workload/$WORKLOAD"
 
           # Check if entry exists for this agent+workload combo
@@ -170,11 +176,16 @@ let
             SKIPPED=$((SKIPPED + 1))
           else
             echo "  [create] $WORKLOAD"
+            SELECTOR_ARGS=()
+            IFS=',' read -r -a SELECTORS <<< "$SELECTORS_CSV"
+            for SEL in "''${SELECTORS[@]}"; do
+              SELECTOR_ARGS+=( -selector "$SEL" )
+            done
             spire-server entry create \
               -socketPath "$SOCKET" \
               -parentID "$PARENT_ID" \
               -spiffeID "$SPIFFE_ID" \
-              -selector unix:user:ghaf >/dev/null 2>&1 || echo "  [FAILED] $WORKLOAD"
+              "''${SELECTOR_ARGS[@]}" >/dev/null 2>&1 || echo "  [FAILED] $WORKLOAD"
             CREATED=$((CREATED + 1))
           fi
         done
