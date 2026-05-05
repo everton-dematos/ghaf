@@ -244,6 +244,9 @@ in
             stage.drop {
               expression = "(GatewayAuthenticator::login|Gateway login succeeded|csd-wrapper|nmcli)"
             }
+            stage.drop {
+              expression = "^(type=)?(CWD|PROCTITLE)([[:space:]]|$)"
+            }
           }
 
           loki.source.journal "journal" {

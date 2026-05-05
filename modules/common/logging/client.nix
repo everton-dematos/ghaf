@@ -139,7 +139,15 @@ in
           path          = "/var/log/journal"
           relabel_rules = discovery.relabel.journal.rules
           max_age       = "168h"
-          forward_to    = [loki.write.adminvm.receiver]
+          forward_to    = [loki.process.journal.receiver]
+        }
+
+        loki.process "journal" {
+          forward_to = [loki.write.adminvm.receiver]
+
+          stage.drop {
+            expression = "^(type=)?(CWD|PROCTITLE)([[:space:]]|$)"
+          }
         }
 
         loki.write "adminvm" {
