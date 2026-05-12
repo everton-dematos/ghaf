@@ -51,6 +51,9 @@ let
       WorkloadAttestor "unix" {
         plugin_data {}
       }
+      WorkloadAttestor "systemd" {
+        plugin_data {}
+      }
       KeyManager "memory" {
         plugin_data {}
       }

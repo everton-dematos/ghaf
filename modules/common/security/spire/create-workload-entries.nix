@@ -40,7 +40,13 @@ pkgs.writeShellApplication {
       shift 3
       local selectors=("$@")
 
-      if spire-server entry show -socketPath "$SOCKET" -spiffeID "$spiffeID" >/dev/null 2>&1; then
+      local existing
+      if ! existing=$(spire-server entry show -socketPath "$SOCKET" -spiffeID "$spiffeID" 2>&1); then
+        echo "$existing" >&2
+        return 1
+      fi
+
+      if ! echo "$existing" | grep -q "Found 0 entries"; then
         echo "Entry exists: $spiffeID"
         return
       fi

@@ -347,5 +347,14 @@ in
     ghaf.security.audit.extraRules = [
       "-w /etc/alloy/logs-aggregator.alloy -p rwxa -k alloy_client_config"
     ];
+
+    ghaf.security.spire.agent.workloads = [
+      {
+        name = "log-aggregator";
+        selectors = [
+          "systemd:id:alloy.service"
+        ];
+      }
+    ];
   };
 }

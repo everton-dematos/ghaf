@@ -201,5 +201,14 @@ in
     ghaf.security.audit.extraRules = [
       "-w /etc/alloy/client.alloy -p rwxa -k alloy_client_config"
     ];
+
+    ghaf.security.spire.agent.workloads = [
+      {
+        name = "log-forwarder";
+        selectors = [
+          "systemd:id:alloy.service"
+        ];
+      }
+    ];
   };
 }
