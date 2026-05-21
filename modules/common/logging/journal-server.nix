@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -16,6 +17,15 @@ let
   givcEnabled = config.ghaf.givc.enable;
   givcHostEnabled = config.ghaf.givc.host.enable;
   needsGivcMount = givcEnabled && !givcHostEnabled;
+  monitorCfg = cfg.resourceMonitor;
+  mkResourceMonitor = import ./resource-monitor.nix { inherit pkgs; };
+
+  journalRemoteResourceMonitor = mkResourceMonitor {
+    name = "ghaf-journal-remote-resource-monitor";
+    unit = "systemd-journal-remote.service";
+    inherit (monitorCfg) durationSeconds intervalSeconds outputFile;
+    completionMessage = "Wrote systemd-journal-remote resource samples to";
+  };
 in
 {
   _file = ./journal-server.nix;
@@ -51,6 +61,30 @@ in
           default = true;
           description = "Require client certificates (mTLS).";
         };
+      };
+    };
+
+    resourceMonitor = {
+      enable = (mkEnableOption "30-minute CPU and memory monitor for systemd-journal-remote") // {
+        default = true;
+      };
+
+      durationSeconds = mkOption {
+        type = types.ints.positive;
+        default = 30 * 60;
+        description = "How long to monitor systemd-journal-remote resource usage.";
+      };
+
+      intervalSeconds = mkOption {
+        type = types.ints.positive;
+        default = 10;
+        description = "How often to sample systemd-journal-remote resource usage.";
+      };
+
+      outputFile = mkOption {
+        type = types.str;
+        default = "/tmp/systemd-journal-remote-resource-monitor-${config.networking.hostName}.csv";
+        description = "CSV file path where systemd-journal-remote resource samples are written.";
       };
     };
   };
@@ -109,6 +143,19 @@ in
       serviceConfig = {
         User = lib.mkForce "root";
         Group = lib.mkForce "systemd-journal";
+      };
+    };
+
+    systemd.services.ghaf-journal-remote-resource-monitor = mkIf monitorCfg.enable {
+      description = "Collect systemd-journal-remote CPU and memory usage";
+      after = [ "systemd-journal-remote.service" ];
+      wants = [ "systemd-journal-remote.service" ];
+      wantedBy = [ "multi-user.target" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        TimeoutStartSec = "${toString (monitorCfg.durationSeconds + monitorCfg.intervalSeconds + 60)}s";
+        ExecStart = lib.getExe journalRemoteResourceMonitor;
       };
     };
 

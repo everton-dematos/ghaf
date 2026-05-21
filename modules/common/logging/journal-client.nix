@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -18,6 +19,15 @@ let
   givcEnabled = config.ghaf.givc.enable;
   givcHostEnabled = config.ghaf.givc.host.enable;
   needsGivcMount = givcEnabled && !givcHostEnabled;
+  monitorCfg = cfg.resourceMonitor;
+  mkResourceMonitor = import ./resource-monitor.nix { inherit pkgs; };
+
+  journalUploadResourceMonitor = mkResourceMonitor {
+    name = "ghaf-journal-upload-resource-monitor";
+    unit = "systemd-journal-upload.service";
+    inherit (monitorCfg) durationSeconds intervalSeconds outputFile;
+    completionMessage = "Wrote systemd-journal-upload resource samples to";
+  };
 in
 {
   _file = ./journal-client.nix;
@@ -58,6 +68,30 @@ in
         );
         default = "TLS12";
         description = "Minimum TLS version for the outbound connection.";
+      };
+    };
+
+    resourceMonitor = {
+      enable = (mkEnableOption "30-minute CPU and memory monitor for systemd-journal-upload") // {
+        default = true;
+      };
+
+      durationSeconds = mkOption {
+        type = types.ints.positive;
+        default = 30 * 60;
+        description = "How long to monitor systemd-journal-upload resource usage.";
+      };
+
+      intervalSeconds = mkOption {
+        type = types.ints.positive;
+        default = 10;
+        description = "How often to sample systemd-journal-upload resource usage.";
+      };
+
+      outputFile = mkOption {
+        type = types.str;
+        default = "/tmp/systemd-journal-upload-resource-monitor-${config.networking.hostName}.csv";
+        description = "CSV file path where systemd-journal-upload resource samples are written.";
       };
     };
   };
@@ -107,6 +141,19 @@ in
       serviceConfig = {
         User = lib.mkForce "root";
         Group = lib.mkForce "root";
+      };
+    };
+
+    systemd.services.ghaf-journal-upload-resource-monitor = mkIf monitorCfg.enable {
+      description = "Collect systemd-journal-upload CPU and memory usage";
+      after = [ "systemd-journal-upload.service" ];
+      wants = [ "systemd-journal-upload.service" ];
+      wantedBy = [ "multi-user.target" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        TimeoutStartSec = "${toString (monitorCfg.durationSeconds + monitorCfg.intervalSeconds + 60)}s";
+        ExecStart = lib.getExe journalUploadResourceMonitor;
       };
     };
   };

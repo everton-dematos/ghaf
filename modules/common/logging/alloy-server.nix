@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -22,6 +23,15 @@ let
   givcEnabled = config.ghaf.givc.enable;
   givcHostEnabled = config.ghaf.givc.host.enable;
   needsGivcMount = givcEnabled && !givcHostEnabled;
+  monitorCfg = cfg.resourceMonitor;
+  mkResourceMonitor = import ./resource-monitor.nix { inherit pkgs; };
+
+  alloyServerResourceMonitor = mkResourceMonitor {
+    name = "ghaf-alloy-server-resource-monitor";
+    unit = "alloy.service";
+    inherit (monitorCfg) durationSeconds intervalSeconds outputFile;
+    completionMessage = "Wrote Alloy server resource samples to";
+  };
 in
 {
   _file = ./alloy-server.nix;
@@ -83,6 +93,30 @@ in
         );
         default = "TLS12";
         description = "Minimum TLS version for the outbound connection.";
+      };
+    };
+
+    resourceMonitor = {
+      enable = (mkEnableOption "30-minute CPU and memory monitor for the Alloy server") // {
+        default = true;
+      };
+
+      durationSeconds = mkOption {
+        type = types.ints.positive;
+        default = 30 * 60;
+        description = "How long to monitor Alloy server resource usage.";
+      };
+
+      intervalSeconds = mkOption {
+        type = types.ints.positive;
+        default = 10;
+        description = "How often to sample Alloy server resource usage.";
+      };
+
+      outputFile = mkOption {
+        type = types.str;
+        default = "/tmp/alloy-server-resource-monitor-${config.networking.hostName}.csv";
+        description = "CSV file path where Alloy server resource samples are written.";
       };
     };
   };
@@ -284,6 +318,19 @@ in
         ++ optionals (cfg.tls.remoteCAFile != null) [
           "remote_ca:${cfg.tls.remoteCAFile}"
         ];
+      };
+    };
+
+    systemd.services.ghaf-alloy-server-resource-monitor = mkIf monitorCfg.enable {
+      description = "Collect Alloy server CPU and memory usage";
+      after = [ "alloy.service" ];
+      wants = [ "alloy.service" ];
+      wantedBy = [ "multi-user.target" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        TimeoutStartSec = "${toString (monitorCfg.durationSeconds + monitorCfg.intervalSeconds + 60)}s";
+        ExecStart = lib.getExe alloyServerResourceMonitor;
       };
     };
 
