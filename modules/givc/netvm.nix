@@ -101,6 +101,9 @@ in
         policy = {
           talk = [
             "org.freedesktop.NetworkManager"
+          ]
+          ++ lib.optionals config.ghaf.services.fortivpn.enable [
+            "org.ghaf.FortiVpn"
           ];
         };
       };

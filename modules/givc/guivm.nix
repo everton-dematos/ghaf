@@ -140,6 +140,35 @@ in
       startLimitIntervalSec = 0;
       wantedBy = [ "multi-user.target" ];
     };
+    systemd.services.dbus-proxy-fortivpn = mkIf config.ghaf.services.fortivpn.enable {
+      description = "DBus proxy for the Fortinet VPN service in ${netvmName}";
+      after = [ "givc-${guivmName}.service" ];
+      requires = [ "givc-${guivmName}.service" ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = "1s";
+        ExecStartPre = [
+          "${pkgs.coreutils}/bin/timeout 30 ${pkgs.bash}/bin/bash -c 'until [ -S /tmp/dbusproxy_net.sock ]; do sleep 0.5; done'"
+        ];
+        Environment = [
+          "DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/dbusproxy_net.sock"
+        ];
+        ExecStart = [
+          ''
+            ${lib.getExe pkgs.dbus-proxy} \
+              --source-bus-name org.ghaf.FortiVpn \
+              --source-object-path /org/ghaf/FortiVpn \
+              --proxy-bus-name org.ghaf.FortiVpn \
+              --source-bus-type session \
+              --target-bus-type system \
+              --log-level error
+          ''
+        ];
+      };
+      startLimitIntervalSec = 0;
+      wantedBy = [ "multi-user.target" ];
+    };
     systemd.services.dbus-proxy-bluetooth = {
       description = "DBus proxy for Bluetooth ${guivmName}";
       # Wait for GIVC to create the socket before starting

@@ -15,6 +15,7 @@
     fss-triage = final.callPackage ./pkgs-by-name/fss-triage/package.nix { };
     gala = final.callPackage ./pkgs-by-name/gala/package.nix { };
     ghaf-build-helper = final.callPackage ./pkgs-by-name/ghaf-build-helper/package.nix { };
+    ghaf-fortivpn = final.callPackage ./pkgs-by-name/ghaf-fortivpn/package.nix { };
     ghaf-installer = final.callPackage ./pkgs-by-name/ghaf-installer/package.nix { };
     ghaf-intro = final.callPackage ./pkgs-by-name/ghaf-intro/package.nix { };
     ghaf-open = final.callPackage ./pkgs-by-name/ghaf-open/package.nix { };

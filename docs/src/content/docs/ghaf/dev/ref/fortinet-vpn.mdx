@@ -1,0 +1,66 @@
+---
+title: Fortinet SSL VPN
+description: Configure and use a Fortinet SSL VPN through the Ghaf desktop.
+---
+{/*
+SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
+SPDX-License-Identifier: CC-BY-SA-4.0
+*/}
+
+Ghaf supports Fortinet-compatible SSL VPN connections through NetworkManager and `openfortivpn`. The tunnel and its routes run in `net-vm`; users create profiles with the **Fortinet VPN** application in `gui-vm`. Created profiles appear in COSMIC's VPN list and can be connected, disconnected, or removed there. The editor is a separate application and does not patch COSMIC Settings.
+
+## Add a connection
+
+1. Open the application library and launch **Fortinet VPN**. The application follows the desktop's current light or dark appearance.
+2. Enter a connection name and the gateway hostname or IP address. Do not include `https://` or a realm path in the gateway.
+3. Enter the gateway port and, when supplied by the VPN administrator, the realm.
+4. Enter the VPN username. The account password is requested later, whenever you connect.
+5. Enter the trusted gateway certificate SHA-256 fingerprint when the administrator supplies one. Confirm fingerprint changes with the administrator instead of accepting a new value automatically.
+6. If client certificate authentication is required, choose the supplied `.p12` or `.pfx` file and enter its import password.
+7. Optionally choose a PEM, CRT, or CER gateway CA certificate.
+8. Select **Add VPN**.
+9. After the profile is created, select **Open VPN Settings** or open **Settings → Network & Wireless → VPN**.
+
+The import service validates the client certificate, checks that its private key matches, and rejects an expired certificate. It stores extracted certificate material in persistent `net-vm` storage with root-only permissions. It does not receive or store the VPN account password, and it does not retain the PKCS#12 file or its import password.
+
+## Connect and disconnect
+
+Open **Network & Wireless → VPN**, or use the network menu in the COSMIC panel, and select the saved profile. Ghaf displays a password prompt for that connection attempt. The password is passed to NetworkManager in memory and is not saved, so it must be entered each time. This account password is separate from the PKCS#12 import password.
+
+NetworkManager applies the routes and DNS settings supplied by the FortiGate. Removing the VPN profile also makes its imported certificate directory eligible for automatic cleanup in `net-vm`.
+
+## Configuration
+
+The feature is enabled in the standard debug and release profiles. It can be assigned explicitly through the global feature configuration:
+
+```nix
+ghaf.global-config.features.fortivpn = {
+  enable = true;
+  targetVms = [
+    "gui-vm"
+    "net-vm"
+  ];
+};
+```
+
+Both VMs are required. The GUI uses a filtered GIVC D-Bus path to a constrained certificate-import service in `net-vm`; it does not expose a general command execution interface.
+
+## Troubleshooting
+
+Inspect the backend and certificate cleanup services from `net-vm`:
+
+```sh
+systemctl status ghaf-fortivpn
+systemctl status ghaf-fortivpn-gc
+journalctl -u ghaf-fortivpn
+```
+
+Inspect the GUI-to-Net-VM proxy from `gui-vm`:
+
+```sh
+systemctl status dbus-proxy-fortivpn
+systemctl status dbus-proxy-networkmanager
+systemctl --user status ghaf-fortivpn-secret-agent
+```
+
+If the FortiGate gateway certificate changes, obtain and verify the replacement fingerprint through a trusted administrative channel before updating the connection.
