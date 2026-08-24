@@ -560,6 +560,26 @@
         "type": "github"
       }
     },
+    "logseald": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1789383544,
+        "narHash": "sha256-z5sNB78oo3l1flcyQj2MkX/X9kBC32/kd+4Q14pVYuE=",
+        "owner": "tiiuae",
+        "repo": "ghaf-logseald",
+        "rev": "27a6504e0f741eefff0ede852a3a1113be3356b3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tiiuae",
+        "repo": "ghaf-logseald",
+        "type": "github"
+      }
+    },
     "microvm": {
       "inputs": {
         "nixpkgs": [
@@ -759,6 +779,7 @@
         "gp-gui": "gp-gui",
         "gpu-partition-manager": "gpu-partition-manager",
         "jetpack-nixos": "jetpack-nixos",
+        "logseald": "logseald",
         "microvm": "microvm",
         "nix-store-veritysetup-generator": "nix-store-veritysetup-generator",
         "nixd": "nixd",
