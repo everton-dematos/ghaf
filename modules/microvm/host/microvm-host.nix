@@ -172,6 +172,11 @@ in
               lib.mkDefault config.ghaf.logging.enable
             else
               lib.mkForce false;
+          logseald = {
+            producer.enable =
+              (config.ghaf.global-config.logging.logseald.enable or false) && config.ghaf.logging.enable;
+            endpoint.port = config.ghaf.global-config.logging.logseald.port or 59631;
+          };
           journalClient = {
             inherit (config.ghaf.logging) enable;
           };
