@@ -521,9 +521,11 @@ sealing succeeds. A sample started before the deadline may finish just after it.
 Journald is not ordered after the collector, so its early startup may be missed.
 Its measurements include normal logging work, not just sealing overhead. Compare
 with the same journald measurements on FSS and baseline builds, keeping audit
-settings, log workload and retention consistent. Disabling FSS removes its forced
-audit enablement; the selected platform profile must enable auditing separately
-if it is required for the comparison.
+settings, log workload and retention consistent. The standard laptop and Orin
+profiles enable auditing independently of FSS. Debug and release global profiles
+enable it for guests, including app VMs and the IDS VM. Minimal profiles retain
+their audit-disabled default. Disabling FSS no longer removes auditing from the
+standard builds; platform overrides can still change this policy.
 
 Short startup helpers can finish between samples. Retained systemd CPU/peak
 accounting is included when available, but their live RSS/PSS may never appear.
