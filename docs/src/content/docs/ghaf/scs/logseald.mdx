@@ -455,6 +455,87 @@ entry digest markers. Protect these
 directories as sensitive log storage and account for their growth in storage
 capacity planning.
 
+## Automatic resource measurements
+
+By default, `logseald-performance.service` samples journald and the enabled logseald services
+every ten seconds during the first 600 seconds of each node's boot. It starts
+automatically on the host and every VM using logseald. No command or network
+connection is needed. This collector is intended for performance test builds,
+not production. Disable this diagnostic collection on an individual node
+with `ghaf.logging.logseald.performance.enable = false`.
+
+Results are ordinary CSV files in the node's public `/tmp` namespace, inside a
+root-owned, readable directory:
+
+```text
+/tmp/logseald-performance-<source-name>-<boot-id>-<unique-suffix>/
+  <source-name>-logseald-producer.service.csv
+  <source-name>-logseald-journal-permissions.service.csv
+  <source-name>-systemd-journald.service.csv
+```
+
+The Admin VM additionally records `logseald-sealer.service` and
+`logseald-sealer-proxy.service`. Node names use the configured producer source,
+so net-vm remains identifiable even when its hostname is generated. The collector
+does not monitor itself: regular producer nodes generate three CSV files, and
+the Admin VM with both roles generates five.
+The socket unit has no separate worker process: proxy work belongs to the proxy
+service, while socket management in PID 1 is not separately attributable here.
+
+Files are flushed after each sample and remain after collection ends. Copy them
+before rebooting, since `/tmp` is not durable storage. Each run creates a new
+unique directory and never overwrites previous files. Directories use mode 0755
+and CSVs use mode 0644, so `ghaf` can read them without sudo but cannot modify
+them. No journal content or
+credentials are exported. Root privileges allow reading process accounting;
+the collector cannot modify cgroups, the clock, or files outside `/tmp`.
+
+### Reading the CSV
+
+| Columns | Meaning |
+| --- | --- |
+| `timestamp`, `elapsed_seconds` | UTC wall time and seconds since this node booted. Use elapsed time for analysis when the clock jumps. |
+| `node`, `boot_id`, `unit`, `invocation_id`, `restarts` | Identify the node, boot, service and service lifetime. |
+| `memory_current_bytes`, `memory_current_mib` | Memory charged to the entire service cgroup, including child processes, file cache and kernel allocations. This is the primary service memory measurement. |
+| `memory_peak_*`, `memory_swap_current_*`, `memory_swap_peak_*` | Kernel/systemd accounting values when available. Peaks belong to the cgroup/service lifetime, not just the sampled period. |
+| `cgroup_anon_*`, `cgroup_file_*`, other `cgroup_*` | Memory breakdown from `memory.stat`. Anonymous memory is useful for understanding application allocations; file memory includes cache and shared memory. |
+| `cgroup_non_file_*` | `max(0, memory.current - file)`, a rough derived figure, not a precise working-set measurement. |
+| `process_vmrss_*`, `process_rss_*`, `process_pss_*` | **Main process only.** RSS counts resident mappings; PSS apportions shared mappings. These exclude children such as the producer's `journalctl`; do not use them alone for total service cost. |
+| `cpu_usage_usec` | Cumulative CPU time reported by systemd for this service invocation, in microseconds, including children. |
+| `cpu_delta_usec`, `cpu_interval_seconds`, `cpu_percent` | CPU change between valid samples in the same lifetime. 100% means one fully occupied CPU; values may exceed 100%. |
+| `sample_status` | Notes missing cgroups, failed property queries, unavailable PSS, or process changes during collection. |
+
+The CPU percentage is `100 × delta_cpu_usec / (interval_seconds × 1,000,000)`.
+The first sample and samples crossing a restart/counter reset have blank deltas.
+Missing or unsupported values are blank, **not zero**. Measurements are read
+sequentially, not as an atomic snapshot; memory breakdowns need not add up exactly.
+See the [kernel cgroup v2 accounting documentation](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+for the underlying counters.
+
+Collection uses Linux boot time, including suspend time, rather than wall time.
+It begins as early as the collector can start, before the logseald services are
+ordered to start, and ends at 10 minutes since boot, not 10 minutes after login.
+There is no sample at kernel boot time zero, and delayed startup or suspend means
+fewer samples. The collector does not block boot for 10 minutes or require that
+sealing succeeds. A sample started before the deadline may finish just after it.
+Journald is not ordered after the collector, so its early startup may be missed.
+Its measurements include normal logging work, not just sealing overhead. Compare
+with the same journald measurements on FSS and baseline builds, keeping audit
+settings, log workload and retention consistent. Disabling FSS removes its forced
+audit enablement; the selected platform profile must enable auditing separately
+if it is required for the comparison.
+
+Short startup helpers can finish between samples. Retained systemd CPU/peak
+accounting is included when available, but their live RSS/PSS may never appear.
+The collector reads counters only; it does not reset peaks or restart services.
+Its own memory is capped at 64 MiB, with swap disabled. This is a safety limit,
+not a prediction of actual memory use.
+
+These files measure **direct service resource usage**, not the entire incremental
+system overhead. To quantify the latter, compare equivalent workloads with and
+without logseald, including journald, filesystem and hypervisor costs. Do not sum
+host microVM memory with guest service memory: that would count guest memory twice.
+
 ## Related Reading
 
 - [System Logs](/ghaf/overview/arch/system-logs-encryption/)

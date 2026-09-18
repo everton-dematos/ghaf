@@ -134,6 +134,22 @@ pkgs.testers.nixosTest {
     start_all()
     admin.wait_for_unit("logseald-sealer.service")
     producer.wait_for_unit("logseald-producer.service")
+    for node, measured_unit in ((admin, "logseald-sealer.service"), (producer, "logseald-producer.service")):
+        node.wait_for_unit("logseald-performance.service")
+        check_samples = (
+            "import csv,pathlib; "
+            "files=list(pathlib.Path('/tmp').glob('logseald-performance-*/*.csv')); "
+            "assert files; "
+            "assert not any(path.name.endswith('-logseald-performance.service.csv') for path in files); "
+            "rows=[row for path in files for row in csv.DictReader(path.open())]; "
+            "assert any(row['unit']=='systemd-journald.service' "
+            "and row['active_state']=='active' and row['memory_current_bytes'] "
+            "and row['cpu_usage_usec'] for row in rows); "
+            "assert any(row['active_state']=='active' and row['memory_current_bytes'] "
+            "and row['cpu_usage_usec'] for row in rows "
+            f"if row['unit']=={measured_unit!r})"
+        )
+        node.wait_until_succeeds("${pkgs.python3}/bin/python3 -c " + shlex.quote(check_samples))
     producer.succeed("systemctl is-active logseald-journal-permissions.service")
     producer.succeed("systemctl show logseald-journal-permissions.service -p CapabilityBoundingSet --value | grep -qw cap_fsetid")
     producer.fail("systemctl show systemd-tmpfiles-setup.service -p CapabilityBoundingSet --value | grep -qw cap_fsetid")

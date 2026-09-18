@@ -106,6 +106,7 @@ let
 in
 {
   _file = ./logseald.nix;
+  imports = [ ./logseald-performance.nix ];
 
   options.ghaf.logging.logseald = {
     producer = storageOptions (256 * 1024 * 1024) // {

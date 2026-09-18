@@ -74,6 +74,19 @@
           ${lib.concatStringsSep "\n" hits}
         '' pkgs.emptyFile;
 
+      checks.logseald-performance =
+        pkgs.runCommand "logseald-performance-tests"
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+          }
+          ''
+            mkdir -p modules/common/logging tests/logseald
+            cp ${../modules/common/logging/logseald-performance.py} modules/common/logging/logseald-performance.py
+            cp ${../tests/logseald/test_performance.py} tests/logseald/test_performance.py
+            python3 -B -m unittest discover -s tests/logseald -p test_performance.py -v
+            touch "$out"
+          '';
+
       pre-commit = {
         settings = {
           hooks = {
