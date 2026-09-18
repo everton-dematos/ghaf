@@ -1547,6 +1547,7 @@ let
 in
 {
   _file = ./fss.nix;
+  imports = [ ./fss-performance.nix ];
 
   options.ghaf.logging.fss = {
     enable = mkOption {

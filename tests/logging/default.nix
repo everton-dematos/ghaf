@@ -248,6 +248,11 @@ pkgs.testers.nixosTest {
     machine.wait_for_unit("multi-user.target")
     fss_only.wait_for_unit("multi-user.target")
     stateless_vm.wait_for_unit("multi-user.target")
+    machine.wait_for_unit("fss-performance.service")
+    machine.wait_until_succeeds("find /tmp -path '*fss-performance-*/*-journal-fss-setup.service.csv' -size +0c | grep -q .")
+    machine.succeed("test $(find /tmp -path '*fss-performance-*/*.csv' | wc -l) -eq 6")
+    machine.wait_until_succeeds("find /tmp -path '*fss-performance-*/*-systemd-journald.service.csv' -size +0c | grep -q .")
+    stateless_vm.fail("systemctl cat fss-performance.service")
 
     with subtest("Clock readiness completes and unblocks FSS at production defaults"):
         # TimeoutStartSec = maxWaitSeconds (90) + 30 = 120s; the default

@@ -74,6 +74,19 @@
           ${lib.concatStringsSep "\n" hits}
         '' pkgs.emptyFile;
 
+      checks.fss-performance =
+        pkgs.runCommand "fss-performance-tests"
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+          }
+          ''
+            mkdir -p modules/common/logging tests/fss-performance
+            cp ${../modules/common/logging/fss-performance.py} modules/common/logging/fss-performance.py
+            cp ${../tests/fss-performance/test_performance.py} tests/fss-performance/test_performance.py
+            python3 -B -m unittest discover -s tests/fss-performance -v
+            touch "$out"
+          '';
+
       pre-commit = {
         settings = {
           hooks = {

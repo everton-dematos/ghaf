@@ -268,6 +268,91 @@ FSS integrates with Ghaf's audit subsystem. The following events are monitored:
 - `journal_sealed_logs`: Write/attribute changes to journal files
 - `machine_id_read`: Reads of machine-id (used in journal path)
 
+## Boot-time resource measurements
+
+For performance test builds, `fss-performance.service` starts automatically on
+every FSS-enabled node. It uses the same CSV columns, counter reads, CPU delta
+calculation and sampling schedule as the logseald performance collector: one
+sample every ten seconds during the first 1,800 seconds since each node booted.
+It does not monitor itself. Disable it for production with:
+
+```nix
+ghaf.logging.fss.performance.enable = false;
+```
+
+Files are written to:
+
+```text
+/tmp/fss-performance-<node>-<boot-id>-<unique-suffix>/<node>-<unit>.csv
+```
+
+The directory is root-owned mode 0755 and CSVs are mode 0644, so the normal
+user can read them without sudo. Node names use the VM storage name (for example
+`net-vm`), with the configured hostname as a fallback. Copy results before reboot:
+`/tmp` is not durable storage. A new collector run never overwrites an older run.
+
+### Services and attribution
+
+| Services | Where measured | Attribution |
+| --- | --- | --- |
+| `systemd-journald` | Every FSS node | Shared logging service, including FSS sealing work |
+| `journal-fss-setup`, `journal-fss-verify` | Every FSS node | FSS-specific activation/key setup and verification |
+| `journal-fss-prepare-persistent-journal` | Host only | FSS persistent-journal preparation |
+| `ghaf-clock-ready`, `ghaf-clock-sync` | When the clock-readiness barrier is enabled | FSS clock preparation and synchronization wait |
+
+Journald and these FSS-specific helpers are sampled. With the default clock-readiness
+settings, the host produces six CSVs and each FSS-enabled VM produces three.
+Journal flush, the clock-jump watcher, recovery, auditd and the collector
+itself are excluded.
+
+Names in the table have a `.service` suffix in filenames. Timer, target and
+mount units have no separate worker process to attribute CPU/RSS to. The
+verification timer is not accelerated for this measurement. Services that do
+not run during the window remain visible as inactive/unavailable; they are not
+artificially started. Network time daemons, log forwarders, audit rule-loading
+helpers and kernel/hypervisor work are not included as FSS-specific costs.
+
+The collector does not alter FSS keys, activation policy, verification cadence,
+service credentials or journald logging policy. It enables CPU/memory accounting
+on the measured services. It is deliberately **not ordered before early
+journald, flush, persistent-storage preparation or clock-readiness services**:
+such ordering could create boot cycles. Those can finish before its first sample.
+Retained accounting is used when available; live memory peaks of very brief
+helpers can be missed. Nothing here measures from the first kernel instruction.
+
+### Comparable metrics
+
+- `elapsed_seconds` uses Linux boot time, including suspend; wall-clock jumps
+  change only the UTC `timestamp`, not sampling duration or CPU calculations.
+- `memory_current_*` covers the full service cgroup, including child processes,
+  file cache and kernel memory. `cgroup_anon_*` helps separate anonymous allocations.
+- `process_vmrss_*` and `process_pss_*` describe **only MainPID**, not children.
+  Their accounting differs from cgroup memory; do not sum the two.
+- `cpu_usage_usec` is cumulative CPU for the current service invocation.
+  `cpu_percent` is `100 * cpu_delta_usec / (cpu_interval_seconds * 1000000)`;
+  100% means one full CPU. First samples and lifetime changes have blank deltas.
+- Missing measurements are blank, not zero. `sample_status` explains unavailable
+  cgroups/processes. `active,exited` is normal for completed oneshot services.
+  Repeated retained CPU/peak values are snapshots, not amounts to sum per row.
+- The sampler has the same 64 MiB memory cap, no swap, and low scheduling priority
+  as the logseald sampler. It reads metrics only and flushes every CSV row.
+
+**Journald measurements include normal logging work as well as FSS sealing.**
+Do not attribute all of journald's CPU or memory to FSS. These CSVs include the
+FSS helpers and shared journald service, but do not isolate the incremental
+cost of sealing. The earlier logseald dataset did not include journald; repeat
+that measurement with journald included before comparing the combined costs.
+For that ranking, run the same workload and accounting scope with sealing off,
+FSS enabled, and logseald enabled. Keep hardware, VM resources, forwarding,
+journal retention, audit rules, clock conditions and boot/storage state comparable.
+Report shared-service measurements separately and subtract an equivalent baseline
+only where the comparison is justified. Clock-jump and offline runs should be
+separate scenarios, not pooled with normal-boot resource averages.
+
+Confirm FSS activation and verification actually succeeded using its normal
+status and verification logs: a run stuck waiting for sync is not a measurement
+of active sealing. These resource CSVs alone do not prove log integrity.
+
 ## References
 
 - [ADR: Forward Secure Sealing](/ghaf/overview/arch/adr/fss)
