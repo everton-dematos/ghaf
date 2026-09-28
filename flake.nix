@@ -159,7 +159,7 @@
     };
 
     logseald = {
-      url = "github:tiiuae/ghaf-logseald";
+      url = "github:tiiuae/ghaf-logseald/84aecfca714d128a3dbc07e610c50e30f8f09873";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
