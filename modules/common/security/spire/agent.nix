@@ -193,17 +193,17 @@ let
       pkgs.systemd
     ];
     text = ''
-      # Same gate as the server-side refresh: with requireSync false (the x86
-      # default) the barrier can release on a timeout with the clock still
-      # untrusted, and restarting the agents then just re-mints bad identities.
+      # The boot barrier can time out before NTP synchronises on a later clock change.
       sync_state="$(cat /run/ghaf-clock-synced 2>/dev/null || echo missing)"
-      if [ "$sync_state" != "synchronised" ]; then
-        echo "spire-reattest-agents: clock barrier reports '$sync_state', not 'synchronised';" \
-             "not re-attesting. Agents keep identities minted against an untrusted clock." >&2
+      if [ "$sync_state" != "synchronised" ] \
+        && [ "$(timedatectl show -p NTPSynchronized --value)" != "yes" ]; then
+        echo "spire-reattest-agents: clock barrier reports '$sync_state' and NTP is not synchronised;" \
+             "not re-attesting." >&2
         exit 0
       fi
 
       echo "spire-reattest-agents: clock synchronised, re-attesting ${toString (length agentServiceUnits)} agent(s)"
+      systemctl reset-failed ${escapeShellArgs agentServiceUnits}
       systemctl restart ${escapeShellArgs agentServiceUnits}
     '';
   };
@@ -422,6 +422,14 @@ in
           OnBootSec = "0s";
           AccuracySec = "1us";
           Unit = "ghaf-clock-synced.target";
+        };
+      };
+      timers.spire-reattest-agents-after-time-sync = {
+        description = "Re-attest SPIRE agents after clock changes";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnClockChange = true;
+          Unit = "spire-reattest-agents-after-time-sync.service";
         };
       };
       tmpfiles.rules = filter (rule: rule != "") (
