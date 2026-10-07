@@ -57,6 +57,40 @@ Once logs are aggregated, the Admin VM can forward the unified stream to a
 remote log server. This endpoint supports centralized querying, alerting, and
 longer-term storage beyond what is retained locally.
 
+Journal uploads use the existing GIVC certificates over mutual TLS. A single
+`ghaf-journal-receiver.service` in Admin VM runs the upstream
+`systemd-journal-remote` HTTPS receiver. Its separate package enables upstream
+HTTPS support, which nixpkgs disables by default; no systemd source patch is used.
+
+The receiver selects its output using the verified client certificate's subject,
+not the submitted `_HOSTNAME`. Root-owned, read-only routing links map each known
+`CN=<VM name>` to `/var/log/ghaf-journal/<VM name>/remote.journal`. Unknown
+certificate subjects have no writable output. Alloy reads each VM's directory
+with a fixed `host` label, preserving the authenticated source through forwarding.
+The submitted journal fields, including `_HOSTNAME`, remain untrusted content;
+use the source directory or Alloy's `host` label for VM attribution.
+
+Host and VM senders use `systemd-journal-upload` and the original HTTPS journal
+export protocol. Aggregated files retain native journal fields, binary data,
+rotation and journal cursors. They can be queried with
+`journalctl --directory=/var/log/ghaf-journal/<VM name>`. Logseald continues to
+seal local journals independently.
+
+Before listening, the receiver uses the native journal writer to prepare or
+repair each VM's active journal after an unclean shutdown. The short-lived
+`ghaf-journal-vacuum.service` applies each VM's share of the configured disk
+budget when directory contents change, with a one-minute timer as a fallback.
+It does not run continuously. This is a retention target rather than a hard
+filesystem quota; active files and bursts can temporarily exceed it. Native
+rotation stays inside the per-VM directory, and Alloy can resume across retained
+journal files after an outage.
+
+No additional logging tokens or credential disks are needed. A user with access
+to its VM's GIVC credentials can submit fabricated logs attributed to that VM;
+it cannot select another VM's source without that VM's private key or the CA's
+signing key. Deploy the host and VM changes together and reboot when replacing
+the former syslog-ng or token-based implementation.
+
 ### Secure Logging
 Ghaf applies separate controls while logs are stored, forwarded, and retained
 across isolation boundaries. Integrity, retention, and confidentiality are

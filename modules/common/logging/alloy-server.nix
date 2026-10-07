@@ -165,10 +165,6 @@ in
           ''}
           discovery.relabel "adminJournal" {
             targets = []
-            rule {
-              source_labels = ["__journal__hostname"]
-              target_label  = "host"
-            }
             // Populate service_name before Loki falls back to the journal source job.
             // Later rules are more specific and override earlier fallback values.
             rule {
@@ -216,15 +212,23 @@ in
               expression = "(GatewayAuthenticator::login|Gateway login succeeded|csd-wrapper|nmcli)"
             }
           }
-          loki.source.journal "remote_guests" {
-            path = "/var/log/journal/remote"
-            relabel_rules = discovery.relabel.adminJournal.rules
-            max_age       = "168h"
-            forward_to    = [loki.process.system.receiver]
+          ${lib.concatMapStringsSep "\n" (name: ''
+            loki.source.journal "authenticated_${lib.replaceStrings [ "-" ] [ "_" ] name}" {
+              path          = "/var/log/ghaf-journal/${name}"
+              labels        = { host = "${name}" }
+              relabel_rules = discovery.relabel.adminJournal.rules
+              max_age       = "168h"
+              forward_to    = [loki.process.system.receiver]
+            }
+          '') (lib.remove config.networking.hostName (builtins.attrNames config.ghaf.networking.hosts))}
+
+          local.file "machine_id" {
+            filename = "/etc/machine-id"
           }
 
           loki.source.journal "journal" {
-            path          = "/var/log/journal"
+            path          = "/var/log/journal/" + string.trim_space(local.file.machine_id.content)
+            labels        = { host = "${config.networking.hostName}" }
             relabel_rules = discovery.relabel.adminJournal.rules
             max_age       = "168h"
             forward_to    = [loki.process.system.receiver]
