@@ -70,6 +70,9 @@ let
     PrivateTmp = true;
     CapabilityBoundingSet = "";
     UMask = "0027";
+    LogLevelMax = "notice";
+    # Keep unclassified shell errors visible through the notice-level filter.
+    SyslogLevel = "warning";
   };
 
 in
@@ -148,10 +151,13 @@ in
       ++ lib.optionals givcHostEnabled [ "givc-key-setup.service" ];
       unitConfig.RequiresMountsFor = [ logDirectory ] ++ lib.optional needsGivcMount "/etc/givc";
       environment = {
+        SYSTEMD_LOG_LEVEL = "notice";
         GNUTLS_SYSTEM_PRIORITY_FILE = tlsPolicy;
         GNUTLS_SYSTEM_PRIORITY_FAIL_ON_INVALID = "1";
       };
       serviceConfig = hardening // {
+        # Reclaim journal file cache without imposing an OOM-killing hard limit.
+        MemoryHigh = "32M";
         LoadCredential = [
           "cert:${cfg.tls.certFile}"
           "key:${cfg.tls.keyFile}"
@@ -166,6 +172,7 @@ in
     # The shared receiver's built-in vacuum scans the routing directory, not the per-VM directories.
     systemd.services.ghaf-journal-vacuum = {
       description = "Apply per-VM journal retention limits";
+      environment.SYSTEMD_LOG_LEVEL = "notice";
       after = [ "${unit}.service" ];
       unitConfig = {
         RequiresMountsFor = [ logDirectory ];
