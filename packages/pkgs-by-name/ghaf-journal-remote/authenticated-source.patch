@@ -1,0 +1,134 @@
+SPDX-FileCopyrightText: 2026 TII (SSRC) and the Ghaf contributors
+SPDX-License-Identifier: LGPL-2.1-or-later
+
+Bind shared journal entries to an allowlisted, verified client certificate DN.
+The authenticated-source mode rejects other input paths and overwrites all
+sender-supplied copies of the receiver-owned _GHAF_SOURCE field.
+
+--- a/src/journal-remote/journal-remote-main.c
++++ b/src/journal-remote/journal-remote-main.c
+@@ -45,6 +45,7 @@
+ static char *arg_listen_http = NULL;
+ static char *arg_listen_https = NULL;
+ static char **arg_files = NULL;
++static char **arg_authenticated_sources = NULL;
+ static bool arg_compress = true;
+ static bool arg_seal = false;
+ static int http_socket = -1, https_socket = -1;
+@@ -75,6 +76,7 @@
+ STATIC_DESTRUCTOR_REGISTER(arg_listen_http, freep);
+ STATIC_DESTRUCTOR_REGISTER(arg_listen_https, freep);
+ STATIC_DESTRUCTOR_REGISTER(arg_files, strv_freep);
++STATIC_DESTRUCTOR_REGISTER(arg_authenticated_sources, strv_freep);
+ STATIC_DESTRUCTOR_REGISTER(arg_gnutls_log, strv_freep);
+ STATIC_DESTRUCTOR_REGISTER(arg_key, freep);
+ STATIC_DESTRUCTOR_REGISTER(arg_cert, freep);
+@@ -240,6 +242,12 @@
+         _cleanup_(source_freep) RemoteSource *source = source_new(fd, true, TAKE_PTR(hostname), writer);
+         if (!source)
+                 return log_oom();
++
++        if (!strv_isempty(arg_authenticated_sources)) {
++                source->authenticated_source = strjoin("_GHAF_SOURCE=", source->importer.name + STRLEN("CN="));
++                if (!source->authenticated_source)
++                        return log_oom();
++        }
+
+         log_debug("Added RemoteSource as connection metadata %p", source);
+
+@@ -446,6 +454,13 @@
+         }
+
+         assert(hostname);
++
++        if (!strv_isempty(arg_authenticated_sources)) {
++                const char *name = startswith(hostname, "CN=");
++
++                if (!name || !strv_contains(arg_authenticated_sources, name))
++                        return mhd_respond(connection, MHD_HTTP_FORBIDDEN, "Unknown journal source.");
++        }
+
+         r = request_meta(connection_cls, fd, TAKE_PTR(hostname));
+         if (r == -ENOMEM)
+@@ -966,6 +981,15 @@
+                         }
+                         break;
+
++                OPTION_LONG("authenticated-source", "NAME", "Allow a certificate DN CN=NAME and stamp _GHAF_SOURCE"):
++                        if (isempty(opts.arg) || strlen(opts.arg) > 63 || opts.arg[0] == '-' ||
++                            strspn(opts.arg, "abcdefghijklmnopqrstuvwxyz0123456789-") != strlen(opts.arg))
++                                return log_error_errno(SYNTHETIC_ERRNO(EINVAL), "Invalid authenticated source name.");
++                        r = strv_extend(&arg_authenticated_sources, opts.arg);
++                        if (r < 0)
++                                return log_oom();
++                        break;
++
+                 OPTION_LONG("key", "FILENAME", "SSL key in PEM format (default: \"" PRIV_KEY_FILE "\")"):
+                         r = free_and_strdup_warn(&arg_key, opts.arg);
+                         if (r < 0)
+@@ -1106,6 +1130,13 @@
+                 arg_trust = mfree(arg_trust);
+         }
+
++        if (!strv_isempty(arg_authenticated_sources) &&
++            (!arg_listen_https || https_socket >= 0 || http_socket >= 0 || sd_listen_fds(false) != 0 ||
++             arg_listen_http || arg_listen_raw || arg_url || type_a || arg_trust_all || !arg_trust ||
++             arg_split_mode != JOURNAL_WRITE_SPLIT_NONE || !arg_output))
++                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
++                                       "Authenticated sources require only HTTPS, a trusted CA, and a shared output file.");
++
+         log_debug("Full config: SplitMode=%s Key=%s Cert=%s Trust=%s",
+                   journal_write_split_mode_to_string(arg_split_mode),
+                   strna(arg_key),
+--- a/src/journal-remote/journal-remote-parse.h
++++ b/src/journal-remote/journal-remote-parse.h
+@@ -15,6 +15,7 @@
+         sd_event_source *buffer_event;
+         Compression compression;
+         char *encoding;
++        char *authenticated_source;
+ } RemoteSource;
+
+ RemoteSource* source_new(int fd, bool passive_fd, char *name, Writer *writer);
+--- a/src/journal-remote/journal-remote-parse.c
++++ b/src/journal-remote/journal-remote-parse.c
+@@ -5,6 +5,7 @@
+ #include "alloc-util.h"
+ #include "journal-remote-parse.h"
+ #include "log.h"
++#include "string-util.h"
+
+ RemoteSource* source_free(RemoteSource *source) {
+         if (!source)
+@@ -19,6 +20,7 @@
+         sd_event_source_unref(source->buffer_event);
+
+         free(source->encoding);
++        free(source->authenticated_source);
+         return mfree(source);
+ }
+
+@@ -71,6 +73,23 @@
+
+         assert(source->importer.iovw.iovec);
+
++        if (source->authenticated_source) {
++                struct iovec_wrapper *iovw = &source->importer.iovw;
++                size_t n = 0;
++
++                /* Discard every sender-supplied copy, including binary and duplicate fields. */
++                FOREACH_ARRAY(i, iovw->iovec, iovw->count) {
++                        if (i->iov_len >= STRLEN("_GHAF_SOURCE=") &&
++                            memcmp(i->iov_base, "_GHAF_SOURCE=", STRLEN("_GHAF_SOURCE=")) == 0)
++                                continue;
++                        iovw->iovec[n++] = *i;
++                }
++                iovw->count = n;
++                r = iovw_put(iovw, source->authenticated_source, strlen(source->authenticated_source));
++                if (r < 0)
++                        goto freeing;
++        }
++
+         r = writer_write(source->writer,
+                          &source->importer.iovw,
+                          &source->importer.ts,

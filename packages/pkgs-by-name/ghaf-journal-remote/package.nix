@@ -7,6 +7,7 @@
 }).overrideAttrs
   (old: {
     pname = "ghaf-journal-remote";
+    patches = (old.patches or [ ]) ++ [ ./authenticated-source.patch ];
     # Nixpkgs disables the upstream HTTPS receiver by default.
     mesonFlags = lib.filter (flag: !(lib.hasPrefix "-Dgnutls=" flag)) old.mesonFlags ++ [
       "-Dgnutls=enabled"

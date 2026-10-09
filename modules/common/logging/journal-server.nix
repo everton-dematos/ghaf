@@ -21,36 +21,20 @@ let
   producers = lib.remove config.networking.hostName (builtins.attrNames config.ghaf.networking.hosts);
   unit = "ghaf-journal-receiver";
   logDirectory = "/var/log/ghaf-journal";
-  routeDirectory = "/run/ghaf-journal-sources";
   remote = lib.getExe pkgs.ghaf-journal-remote;
   budget = ''
     budget=$(numfmt --from=iec ${lib.escapeShellArg config.ghaf.logging.journalRetention.maxDiskUsage})
-    budget=$((budget / ${toString (builtins.length producers)}))
   '';
-  maintenance = pkgs.writeShellApplication {
-    name = "maintain-journal-receivers";
-    runtimeInputs = [ pkgs.coreutils ];
-    text = budget + ''
-      for source in ${lib.concatStringsSep " " producers}; do
-        directory=${logDirectory}/"$source"
-        if [[ "$1" == prepare ]]; then
-          # Repair unclean journals at their real paths before following the read-only routing links.
-          ${remote} --split-mode=none --max-use="$budget" --max-file-size="$((budget / 4))" \
-            --output="$directory/remote.journal" /dev/null
-        fi
-        ${config.systemd.package}/bin/journalctl --quiet --directory="$directory" --vacuum-size="$budget"
-      done
-    '';
-  };
   receiver = pkgs.writeShellApplication {
     name = "start-journal-receiver";
     runtimeInputs = [ pkgs.coreutils ];
     text = budget + ''
       exec ${remote} --listen-https=0.0.0.0:${toString config.ghaf.logging.listener.port} \
-        --split-mode=host --output=${routeDirectory} \
+        --split-mode=none --output=${logDirectory}/shared/remote.journal \
         --max-use="$budget" --max-file-size="$((budget / 4))" \
         --key="$CREDENTIALS_DIRECTORY/key" --cert="$CREDENTIALS_DIRECTORY/cert" \
-        --trust="$CREDENTIALS_DIRECTORY/ca"
+        --trust="$CREDENTIALS_DIRECTORY/ca" \
+        ${lib.escapeShellArgs (map (name: "--authenticated-source=${name}") producers)}
     '';
   };
   tlsPolicy = pkgs.writeText "journal-receiver-tls.conf" ''
@@ -70,6 +54,9 @@ let
     PrivateTmp = true;
     CapabilityBoundingSet = "";
     UMask = "0027";
+    LogLevelMax = "notice";
+    # Keep unclassified shell errors visible through the notice-level filter.
+    SyslogLevel = "warning";
   };
 
 in
@@ -148,6 +135,7 @@ in
       ++ lib.optionals givcHostEnabled [ "givc-key-setup.service" ];
       unitConfig.RequiresMountsFor = [ logDirectory ] ++ lib.optional needsGivcMount "/etc/givc";
       environment = {
+        SYSTEMD_LOG_LEVEL = "notice";
         GNUTLS_SYSTEM_PRIORITY_FILE = tlsPolicy;
         GNUTLS_SYSTEM_PRIORITY_FAIL_ON_INVALID = "1";
       };
@@ -157,47 +145,14 @@ in
           "key:${cfg.tls.keyFile}"
           "ca:${cfg.tls.caFile}"
         ];
-        ExecStartPre = [ "${lib.getExe maintenance} prepare" ];
         ExecStart = lib.getExe receiver;
         Restart = "on-failure";
-        ReadOnlyPaths = [ routeDirectory ];
-      };
-    };
-    # The shared receiver's built-in vacuum scans the routing directory, not the per-VM directories.
-    systemd.services.ghaf-journal-vacuum = {
-      description = "Apply per-VM journal retention limits";
-      after = [ "${unit}.service" ];
-      unitConfig = {
-        RequiresMountsFor = [ logDirectory ];
-        StartLimitIntervalSec = 0;
-      };
-      serviceConfig = hardening // {
-        Type = "oneshot";
-        ExecStart = "${lib.getExe maintenance} vacuum";
-      };
-    };
-    systemd.paths.ghaf-journal-vacuum = {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathChanged = map (name: "${logDirectory}/${name}") producers;
-        TriggerLimitIntervalSec = 0;
-      };
-    };
-    systemd.timers.ghaf-journal-vacuum = {
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnBootSec = "1min";
-        OnUnitActiveSec = "1min";
       };
     };
     systemd.tmpfiles.rules = [
       "d ${logDirectory} 0750 root systemd-journal -"
-      "d ${routeDirectory} 0755 root root -"
-    ]
-    ++ lib.concatMap (name: [
-      "d ${logDirectory}/${name} 2750 ${unit} systemd-journal -"
-      "L+ ${routeDirectory}/remote-CN=${name}.journal - - - - ${logDirectory}/${name}/remote.journal"
-    ]) producers;
+      "d ${logDirectory}/shared 2750 ${unit} systemd-journal -"
+    ];
 
     ghaf.storagevm = lib.optionalAttrs (options ? ghaf.storagevm.directories) {
       directories = lib.mkIf config.ghaf.storagevm.enable [ logDirectory ];

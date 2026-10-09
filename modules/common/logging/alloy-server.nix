@@ -24,6 +24,44 @@ let
   givcHostEnabled = config.ghaf.givc.host.enable;
   needsGivcMount = givcEnabled && !givcHostEnabled;
   hasStructuredJournald = options.services.journald ? settings;
+  journalRelabelRules = ''
+    // Populate service_name before Loki falls back to the journal source job.
+    // Later rules are more specific and override earlier fallback values.
+    rule {
+      source_labels = ["__journal__comm"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal_syslog_identifier"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal__systemd_user_unit"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal__systemd_unit"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal_user_unit"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal_unit"]
+      target_label  = "service_name"
+      regex         = "(.+)"
+    }
+    rule {
+      source_labels = ["__journal__transport"]
+      target_label  = "transport"
+    }
+  '';
 in
 {
   _file = ./alloy-server.nix;
@@ -165,42 +203,7 @@ in
           ''}
           discovery.relabel "adminJournal" {
             targets = []
-            // Populate service_name before Loki falls back to the journal source job.
-            // Later rules are more specific and override earlier fallback values.
-            rule {
-              source_labels = ["__journal__comm"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal_syslog_identifier"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal__systemd_user_unit"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal__systemd_unit"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal_user_unit"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal_unit"]
-              target_label  = "service_name"
-              regex         = "(.+)"
-            }
-            rule {
-              source_labels = ["__journal__transport"]
-              target_label  = "transport"
-            }
+            ${journalRelabelRules}
           }
 
           loki.process "system" {
@@ -212,15 +215,25 @@ in
               expression = "(GatewayAuthenticator::login|Gateway login succeeded|csd-wrapper|nmcli)"
             }
           }
-          ${lib.concatMapStringsSep "\n" (name: ''
-            loki.source.journal "authenticated_${lib.replaceStrings [ "-" ] [ "_" ] name}" {
-              path          = "/var/log/ghaf-journal/${name}"
-              labels        = { host = "${name}" }
-              relabel_rules = discovery.relabel.adminJournal.rules
-              max_age       = "168h"
-              forward_to    = [loki.process.system.receiver]
+          discovery.relabel "authenticatedJournal" {
+            targets = []
+            ${journalRelabelRules}
+            rule {
+              source_labels = ["__journal__ghaf_source"]
+              regex = "${lib.concatStringsSep "|" (lib.remove config.networking.hostName (builtins.attrNames config.ghaf.networking.hosts))}"
+              action = "keep"
             }
-          '') (lib.remove config.networking.hostName (builtins.attrNames config.ghaf.networking.hosts))}
+            rule {
+              source_labels = ["__journal__ghaf_source"]
+              target_label = "host"
+            }
+          }
+          loki.source.journal "authenticated" {
+            path          = "/var/log/ghaf-journal/shared"
+            relabel_rules = discovery.relabel.authenticatedJournal.rules
+            max_age       = "168h"
+            forward_to    = [loki.process.system.receiver]
+          }
 
           local.file "machine_id" {
             filename = "/etc/machine-id"

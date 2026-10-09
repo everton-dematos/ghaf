@@ -2,6 +2,7 @@
 title: System Logs
 description: "Overview of Ghaf’s logging architecture: collection, aggregation, retention, transport protection, and tamper evidence."
 ---
+
 Ghaf's logging pipeline collects journald and auditd records, aggregates them in
 the Admin VM, and can forward them to a remote backend. Transport protection,
 storage protection, retention, and log sealing address different security
@@ -58,32 +59,30 @@ remote log server. This endpoint supports centralized querying, alerting, and
 longer-term storage beyond what is retained locally.
 
 Journal uploads use the existing GIVC certificates over mutual TLS. A single
-`ghaf-journal-receiver.service` in Admin VM runs the upstream
-`systemd-journal-remote` HTTPS receiver. Its separate package enables upstream
-HTTPS support, which nixpkgs disables by default; no systemd source patch is used.
+`ghaf-journal-receiver.service` in Admin VM runs `systemd-journal-remote` with
+HTTPS support and a Ghaf patch for authenticated source fields. The system's
+other systemd binaries are unchanged.
 
-The receiver selects its output using the verified client certificate's subject,
-not the submitted `_HOSTNAME`. Root-owned, read-only routing links map each known
-`CN=<VM name>` to `/var/log/ghaf-journal/<VM name>/remote.journal`. Unknown
-certificate subjects have no writable output. Alloy reads each VM's directory
-with a fixed `host` label, preserving the authenticated source through forwarding.
-The submitted journal fields, including `_HOSTNAME`, remain untrusted content;
-use the source directory or Alloy's `host` label for VM attribution.
+The receiver accepts only verified certificate subjects exactly matching
+`CN=<known VM name>`. It removes every submitted `_GHAF_SOURCE` field and adds
+one containing that authenticated VM name. All sources share the native journal
+at `/var/log/ghaf-journal/shared/remote.journal`. Alloy reads this directory once,
+drops entries without a known authenticated source, and sets `host` from
+`_GHAF_SOURCE`. Other submitted fields, including `_HOSTNAME`, remain untrusted.
+Use `_GHAF_SOURCE` or Alloy's `host` label for VM attribution.
 
-Host and VM senders use `systemd-journal-upload` and the original HTTPS journal
-export protocol. Aggregated files retain native journal fields, binary data,
-rotation and journal cursors. They can be queried with
-`journalctl --directory=/var/log/ghaf-journal/<VM name>`. Logseald continues to
-seal local journals independently.
+Host and VM senders keep `systemd-journal-upload` and the HTTPS journal export
+protocol. Native binary fields, timestamps, rotation and journal cursors remain
+available. Query a VM with
+`journalctl --directory=/var/log/ghaf-journal/shared _GHAF_SOURCE=business-vm`.
+Logseald continues to seal local journals independently.
 
-Before listening, the receiver uses the native journal writer to prepare or
-repair each VM's active journal after an unclean shutdown. The short-lived
-`ghaf-journal-vacuum.service` applies each VM's share of the configured disk
-budget when directory contents change, with a one-minute timer as a fallback.
-It does not run continuously. This is a retention target rather than a hard
-filesystem quota; active files and bursts can temporarily exceed it. Native
-rotation stays inside the per-VM directory, and Alloy can resume across retained
-journal files after an outage.
+Native journal rotation and vacuuming apply the configured disk budget to the
+shared directory; there is no separate vacuum service or per-VM disk allowance.
+A noisy VM can therefore shorten retention for other VMs. Active files and
+bursts can temporarily exceed the retention target. Alloy can resume across
+retained journal files after an outage. Older per-VM directories are not read by
+this shared source.
 
 No additional logging tokens or credential disks are needed. A user with access
 to its VM's GIVC credentials can submit fabricated logs attributed to that VM;
@@ -92,6 +91,7 @@ signing key. Deploy the host and VM changes together and reboot when replacing
 the former syslog-ng or token-based implementation.
 
 ### Secure Logging
+
 Ghaf applies separate controls while logs are stored, forwarded, and retained
 across isolation boundaries. Integrity, retention, and confidentiality are
 complementary properties.
@@ -134,7 +134,7 @@ Encryption in transit
 - Implemented with TLS/SSL-protected channels (for example, HTTPS endpoints, syslog over TLS, gRPC with mTLS, or SSH tunnels) between hosts and MicroVMs.
 - Protects confidentiality when logs traverse networks, virtual busses, or shared host paths between VMs.
 - Prevents tampering and spoofing by authenticating endpoints and enabling integrity checks, so attackers cannot inject or modify events in flight.
-- Aligns with Ghaf’s compartmentalization model (modules/microvm/*) and least-privilege service design: even if an intermediate domain is compromised, encrypted channels limit what can be observed or altered.
+- Aligns with Ghaf’s compartmentalization model (modules/microvm/\*) and least-privilege service design: even if an intermediate domain is compromised, encrypted channels limit what can be observed or altered.
 
 Encryption at rest
 
@@ -145,7 +145,7 @@ Encryption at rest
 - Limits blast radius of host or service compromises by requiring access to both storage and keys.
 - Complements tamper-evidence controls by protecting stored log content from
   unauthorized offline reading.
-- Complements kernel/host hardening profiles (see modules/common/profiles/kernel-hardening.nix) and auditing (modules/common/security/audit/*), which increase the value and sensitivity of what is logged.
+- Complements kernel/host hardening profiles (see modules/common/profiles/kernel-hardening.nix) and auditing (modules/common/security/audit/\*), which increase the value and sensitivity of what is logged.
 
 Threats mitigated
 
