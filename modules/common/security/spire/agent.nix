@@ -451,6 +451,8 @@ in
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnClockChange = true;
+          OnUnitInactiveSec = "60s";
+          AccuracySec = "1s";
           Unit = "spire-reattest-agents-after-time-sync.service";
         };
       };
