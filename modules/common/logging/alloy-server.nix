@@ -24,6 +24,9 @@ let
   givcHostEnabled = config.ghaf.givc.host.enable;
   needsGivcMount = givcEnabled && !givcHostEnabled;
   hasStructuredJournald = options.services.journald ? settings;
+  # Unsynchronized boot timestamps must not expire before startup import reads them.
+  maxRetention =
+    if cfg.startupLogImport.enable then "0" else config.ghaf.logging.journalRetention.maxRetention;
   journalRelabelRules = ''
     // Populate service_name before Loki falls back to the journal source job.
     // Later rules are more specific and override earlier fallback values.
@@ -154,7 +157,7 @@ in
         if hasStructuredJournald then
           {
             settings.Journal = mkIf config.ghaf.logging.journalRetention.enable {
-              MaxRetentionSec = config.ghaf.logging.journalRetention.maxRetention;
+              MaxRetentionSec = maxRetention;
               MaxFileSec = config.ghaf.logging.journalRetention.MaxFileSec;
               SyncIntervalSec = config.ghaf.logging.journalRetention.syncInterval;
               SystemMaxUse = config.ghaf.logging.journalRetention.maxDiskUsage;
@@ -165,7 +168,7 @@ in
         else
           {
             extraConfig = mkIf config.ghaf.logging.journalRetention.enable ''
-              MaxRetentionSec=${config.ghaf.logging.journalRetention.maxRetention}
+              MaxRetentionSec=${maxRetention}
               MaxFileSec=${config.ghaf.logging.journalRetention.MaxFileSec}
               SyncIntervalSec=${config.ghaf.logging.journalRetention.syncInterval}
               SystemMaxUse=${config.ghaf.logging.journalRetention.maxDiskUsage}
@@ -246,6 +249,46 @@ in
             max_age       = "168h"
             forward_to    = [loki.process.system.receiver]
           }
+
+          ${optionalString cfg.startupLogImport.enable ''
+            local.file_match "startup" {
+              path_targets = [{ __path__ = "/var/lib/ghaf-startup-log-import/logs/*.jsonl" }]
+              sync_period = "1s"
+            }
+            loki.source.file "startup" {
+              targets = local.file_match.startup.targets
+              forward_to = [loki.process.startup.receiver]
+            }
+            loki.process "startup" {
+              forward_to = [loki.process.system.receiver]
+              stage.json {
+                expressions = {
+                  message = "message",
+                  host = "host",
+                  service_name = "service_name",
+                  transport = "transport",
+                  job = "job",
+                }
+              }
+              stage.labels {
+                values = {
+                  host = "",
+                  service_name = "",
+                  transport = "",
+                  job = "",
+                }
+              }
+              stage.static_labels {
+                values = { time_status = "unsynchronized", log_path = "startup" }
+              }
+              stage.output {
+                source = "message"
+              }
+              stage.label_drop {
+                values = ["filename"]
+              }
+            }
+          ''}
 
           loki.write "remote" {
             endpoint {

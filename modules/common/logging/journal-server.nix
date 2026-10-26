@@ -34,6 +34,9 @@ let
           lib.optionals retention.enable [
             "--max-use=${retention.maxDiskUsage}"
             "--max-file-size=100M"
+          ]
+          # Receiver file ages use sender timestamps, which may precede clock sync.
+          ++ lib.optionals (retention.enable && !config.ghaf.logging.server.startupLogImport.enable) [
             "--max-retention=${retention.maxRetention}"
             "--max-file-age=${retention.MaxFileSec}"
           ]
