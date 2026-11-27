@@ -24,29 +24,6 @@ let
     ghafAllowFilePath
   ];
 
-  _3proxy-restart = pkgs.writeShellApplication {
-    name = "3proxy-restart";
-    runtimeInputs = [
-      pkgs.systemd
-      pkgs.coreutils # Provides 'sleep' and other basic utilities
-    ];
-    text = ''
-
-      sleep 2
-      systemctl stop 3proxy.service
-      echo "Attempting to start 3proxy service"
-
-      # Retry loop for systemctl start 3proxy.service
-      while ! systemctl is-active --quiet 3proxy.service; do
-        echo "3proxy is not activated, retrying to start in 5 seconds..."
-        systemctl start 3proxy.service
-        sleep 5
-      done
-
-      echo "3proxy service successfully started"
-    '';
-  };
-
   config_file_content = ''
     # log to stdout
     log
@@ -58,7 +35,9 @@ let
     #private addresses
     deny * * 0.0.0.0/8,127.0.0.0/8,10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16,::,::1,fc00::/7
 
-    #include dynamic whitelist ips
+    # Catch a second update if its signal arrives during a reload.
+    monitor "/etc/${msAllowFilePath}"
+    monitor "/etc/${ghafAllowFilePath}"
     include "/etc/${msAllowFilePath}"
     include "/etc/${ghafAllowFilePath}"
 
@@ -102,28 +81,6 @@ in
       group = "${proxyGroupName}";
     };
 
-    # Apply the configurations for each allow list path
-    # Allow proxy-admin group to manage specific systemd services without a password
-    security = {
-      polkit = {
-        enable = true;
-        # Polkit rules for allowing proxy-user to run proxy related systemctl
-        # commands without sudo and password requirement
-        extraConfig = ''
-          polkit.addRule(function(action, subject) {
-              if ((action.id == "org.freedesktop.systemd1.manage-units" &&
-                   (action.lookup("unit") == "fetchFile.service" ||
-                    action.lookup("unit") == "fetchFile.timer" ||
-                    action.lookup("unit") == "3proxy.service")) &&
-                  subject.user == "${proxyUserName}") {
-                  return polkit.Result.YES;
-              }
-          });
-        '';
-      };
-
-    };
-
     environment.systemPackages = [ url-fetcher ];
     #Firewall Settings
     ghaf.firewall.extra.input.filter = [
@@ -134,23 +91,35 @@ in
 
     # Apply the allowListConfig generated from the list
     systemd = {
-      tmpfiles.rules = map (
-        tmpPath: "f /etc/${tmpPath} 0660 ${proxyUserName} ${proxyGroupName} - -"
-      ) allowListPaths;
+      tmpfiles.rules = [
+        "d /etc/3proxy 2770 root ${proxyGroupName} - -"
+      ]
+      ++ map (path: "f /etc/${path} 0660 ${proxyUserName} ${proxyGroupName} - -") allowListPaths;
+
+      paths."3proxy-reload" = {
+        wantedBy = [ "3proxy.service" ];
+        before = [ "3proxy.service" ];
+        partOf = [ "3proxy.service" ];
+        pathConfig.PathChanged = map (path: "/etc/${path}") allowListPaths;
+      };
+
+      services."3proxy-reload" = {
+        after = [ "3proxy.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${config.systemd.package}/bin/systemctl reload 3proxy.service";
+        };
+      };
 
       # systemd service for fetching the file
       services.msFetchUrl = {
         description = "Fetch microsoft URLs periodically with retries if internet is available";
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
-        wantedBy = [ "multi-user.target" ];
 
         serviceConfig = {
           ExecStart = "${url-fetcher}/bin/url-fetcher -u ${msUrls} -p /etc/${msAllowFilePath}";
-          # Ensure msFetchUrl starts after the network is up
-          Type = "simple";
-          # Retry until systemctl restart 3proxy succeeds
-          ExecStartPost = "${_3proxy-restart}/bin/3proxy-restart";
+          Type = "oneshot";
           # Restart policy on failure
           Restart = "on-failure"; # Restart the service if it fails
           RestartSec = "10s"; # Wait 10 seconds before restarting
@@ -160,14 +129,14 @@ in
         };
       };
 
-      # systemd timer to trigger the service every 10 minutes
       timers.msFetchUrl = {
         description = "Run msFetchUrl periodically";
         wantedBy = [ "timers.target" ];
         timerConfig = {
           Persistent = true; # Ensures the timer runs after a system reboot
           OnCalendar = "hourly"; # Set to your desired schedule
-          OnBootSec = "60s";
+          OnBootSec = "0";
+          AccuracySec = "1us";
         };
       };
     };
@@ -177,14 +146,10 @@ in
       description = "Fetch ghaf related URLs periodically with retries if internet is available";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
         ExecStart = "${url-fetcher}/bin/url-fetcher -f ${ghafUrls} -p /etc/${ghafAllowFilePath}";
-        # Ensure ghafFetchUrl starts after the network is up
-        Type = "simple";
-        # Retry until systemctl restart 3proxy succeeds
-        ExecStartPost = "${_3proxy-restart}/bin/3proxy-restart";
+        Type = "oneshot";
         # Restart policy on failure
         Restart = "on-failure"; # Restart the service if it fails
         RestartSec = "15s"; # Wait 15 seconds before restarting
@@ -194,7 +159,6 @@ in
       };
     };
 
-    # systemd timer to trigger the service every 10 minutes
     systemd.timers.ghafFetchUrl = {
       description = "Run ghafFetchUrl periodically";
       wantedBy = [ "timers.target" ];
@@ -202,11 +166,14 @@ in
         # See msFetchUrl above: [Timer] accepts no User=/Group=.
         Persistent = true; # Ensures the timer runs after a system reboot
         OnCalendar = "hourly"; # Set to your desired schedule
-        OnBootSec = "90s";
+        OnBootSec = "0";
+        AccuracySec = "1us";
       };
     };
 
     systemd.services."3proxy".serviceConfig = {
+      # 3proxy installs its reload handler after reading the initial config.
+      ExecReload = "${lib.getExe' pkgs.util-linux "kill"} --require-handler --signal USR1 $MAINPID";
       RestartSec = "5s";
       User = "${proxyUserName}";
       Group = "${proxyGroupName}";

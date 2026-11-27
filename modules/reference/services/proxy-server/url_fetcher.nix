@@ -11,6 +11,8 @@ in
 writeShellApplication {
   name = "url-fetcher";
   runtimeInputs = [
+    pkgs.coreutils
+    pkgs.diffutils
     pkgs.inetutils
     pkgs.curl
     pkgs.jq
@@ -21,32 +23,19 @@ writeShellApplication {
     url=""
     url_folder=""
     allowListPath=""
-    # Function to write to the allow list
-    write_to_allow_list() {
-        local processedUrls="$1"
-        local allowListPath="$2"
-
-        {
-            # Ensure the "allow" prefix is written
-            printf "allow * * " || { logger -t ${logTag} "Failed to print prefix"; return 1; }
-            echo "$processedUrls" || { logger -t ${logTag} "Failed to echo processed URLs"; return 1; }
-        } > "$allowListPath" || { logger -t ${logTag} "Failed to write to $allowListPath"; return 2; }
-
-        return 0  # Indicate success
-    }
 
     # Function to fetch and process URLs from a JSON file
     fetch_and_process_url() {
         local file_url="$1"
         local json_content
 
-        if ! json_content=$(curl -s --retry 5 --retry-delay 10 --retry-connrefused "$file_url"); then
+        if ! json_content=$(curl -fsS --retry 5 --retry-delay 10 --retry-connrefused "$file_url"); then
             logger -t ${logTag} "Failed to fetch $file_url"
             return 1
         fi
 
-        if ! jq -e . >/dev/null 2>&1 <<<"$json_content"; then
-            logger -t ${logTag} "Skipping $file_url: response is not JSON"
+        if ! jq -e 'type == "array"' >/dev/null 2>&1 <<<"$json_content"; then
+            logger -t ${logTag} "Expected a JSON array from $file_url"
             return 1
         fi
 
@@ -107,12 +96,10 @@ writeShellApplication {
         folder_api_url="$url_folder"
 
         # Fetch the folder contents from the API
-        folder_response=$(curl -s -H "Accept: application/vnd.github.v3+json" "$folder_api_url")
+        folder_response=$(curl -fsS -H "Accept: application/vnd.github.v3+json" "$folder_api_url")
 
-        # Same reasoning as fetch_and_process_url: check it is JSON before jq
-        # parses it, so a rate-limited or error response is reported as such.
-        if ! jq -e . >/dev/null 2>&1 <<<"$folder_response"; then
-            logger -t ${logTag} "Folder listing from $folder_api_url is not JSON"
+        if ! jq -e 'type == "array"' >/dev/null 2>&1 <<<"$folder_response"; then
+            logger -t ${logTag} "Expected a JSON array from $folder_api_url"
             exit 4
         fi
 
@@ -124,11 +111,10 @@ writeShellApplication {
             exit 4
         fi
 
-        # Process each JSON file URL. One unusable file is skipped, not fatal.
+        # A partial refresh could revoke destinations from the missing file.
         for file_url in $file_urls; do
-            if fetched_urls=$(fetch_and_process_url "$file_url"); then
-                all_urls+="$fetched_urls"$'\n'
-            fi
+            fetched_urls=$(fetch_and_process_url "$file_url") || exit 4
+            all_urls+="$fetched_urls"$'\n'
         done
     fi
 
@@ -137,21 +123,32 @@ writeShellApplication {
     all_urls=$(echo "$all_urls" | awk '{sub(/^,/, ""); print}')
     all_urls=$(echo "$all_urls" | awk '{gsub(/^,|,$/, ""); print}')
 
-    # Never write an empty list. write_to_allow_list would emit a bare
-    # "allow * * ", and 3proxy reads an omitted target list as "any"
+    # 3proxy reads an omitted target list as "any".
     if [[ -z "$all_urls" ]]; then
         logger -t ${logTag} "No URLs collected; leaving $allowListPath unchanged"
         exit 4
     fi
 
-    # Write to the allow list
-    if write_to_allow_list "$all_urls" "$allowListPath"; then
-        logger -t ${logTag} "URLs fetched and saved to $allowListPath successfully"
-        exit 0  # Success
+    candidate=$(mktemp -- "$allowListPath.XXXXXX") || exit 2
+    trap 'rm -f -- "$candidate"' EXIT
+    printf 'allow * * %s\n' "$all_urls" > "$candidate" || exit 2
+
+    if [[ -e "$allowListPath" ]]; then
+        if cmp -s -- "$candidate" "$allowListPath"; then
+            exit 0
+        fi
+        chmod --reference="$allowListPath" -- "$candidate" || exit 2
+        # 3proxy monitors size and whole-second mtime, including across rapid updates.
+        previous_mtime=$(stat -c %Y -- "$allowListPath") || exit 2
+        candidate_mtime=$(stat -c %Y -- "$candidate") || exit 2
+        if (( candidate_mtime <= previous_mtime )); then
+            touch -d "@$((previous_mtime + 1))" -- "$candidate" || exit 2
+        fi
     else
-        logger -t ${logTag} "Failed to save URLs to allow list"
-        exit 2
+        chmod -- '=rw' "$candidate" || exit 2
     fi
+    mv -fT -- "$candidate" "$allowListPath" || exit 2
+    logger -t ${logTag} "Updated $allowListPath"
   '';
   meta = {
     description = "
